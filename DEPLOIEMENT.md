@@ -34,3 +34,21 @@ conversations et les fichiers (Postgres gratuit) : rien n'est perdu quand Render
 - **Sécurité** : ne laisse pas les inscriptions ouvertes sans `SIGNUP_CODE`. Si tu n'as confiance en personne, mets `ENABLE_EXCEL_SCRIPTS=0` (l'IA analyse les Excel mais ne les modifie plus) : c'est la fonction la plus sensible, car l'IA écrit du code exécuté sur le serveur (il est filtré et isolé, mais le risque zéro n'existe pas).
 - **Mots de passe** : stockés hachés (scrypt), jamais en clair. Pas de « mot de passe oublié » : un utilisateur qui oublie le sien doit recréer un compte.
 - **Local** : `start.bat` / l'icône « Mon IA » fonctionnent toujours ; les données sont dans `data/app.db`.
+
+---
+
+# Variante sans carte bancaire : Hugging Face Spaces
+
+Render demande une carte bancaire (vérification à 1 $). Hugging Face Spaces est gratuit sans carte.
+La base de données reste Neon (voir ci-dessus, étape 1).
+
+1. Compte sur https://huggingface.co → **New Space** → nom `mon-ia`, SDK **Docker** (modèle « Blank »), visibilité **Public** ou **Private**.
+2. Onglet **Settings → Variables and secrets** → ajoute en **Secrets** : `DATABASE_URL`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `SIGNUP_CODE` ; en **Variables** : `DAILY_LIMIT` = `50`.
+3. Envoie le code : dans le dossier du projet,
+   ```
+   git remote add hf https://huggingface.co/spaces/TON_PSEUDO/mon-ia
+   git push hf main
+   ```
+   (identifiant = ton pseudo Hugging Face ; mot de passe = un **token** « Write » créé sur https://huggingface.co/settings/tokens)
+4. Le Space construit l'image (3-5 min). Ouvre l'adresse directe `https://TON_PSEUDO-mon-ia.hf.space` (pas la page huggingface.co/spaces/..., qui l'affiche dans un cadre où la connexion ne se conserve pas).
+5. Le Space se met en veille après 48 h sans visite et se réveille tout seul.
