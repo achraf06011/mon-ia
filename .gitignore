@@ -3,3 +3,6 @@ __pycache__/
 data/
 *.pyc
 render.env
+
+.vercel
+.env*
