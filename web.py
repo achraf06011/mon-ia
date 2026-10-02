@@ -43,7 +43,9 @@ aside{width:260px;flex:none;background:#0b0b0b;border-right:1px solid #222;displ
 .act{display:flex;flex:none;gap:2px}
 .item b,.item i{opacity:0;cursor:pointer;padding:0 5px;font-style:normal;font-weight:400}.item b{color:#e66}.item i{color:#9a92ff}
 .item:hover b,.item:hover i{opacity:1}
+.cam{display:none}
 @media(hover:none){.item b,.item i{opacity:.75}}
+@media(hover:none),(pointer:coarse),(max-width:700px){.cam{display:block}}
 .tools{margin-top:10px;display:flex;gap:8px}.tools button{background:#2c2c2c;padding:5px 11px;font-size:12px;color:#bbb;border:1px solid #333}.tools button:hover{color:#fff}
 @keyframes pulse{50%{opacity:.35}}.status{color:#9a92ff;animation:pulse 1.4s infinite}
 #top,.scrim{display:none}
@@ -105,6 +107,8 @@ body.menu .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55)
 <div id="prev" style="display:none;max-width:800px;width:100%;margin:0 auto;padding:0 12px;box-sizing:border-box">
 <img id="pimg" style="height:70px;border-radius:8px;vertical-align:middle"><span id="pname"></span> <button type="button" id="px" style="background:#444;padding:4px 10px">&times;</button></div>
 <form id="f"><button type="button" id="att" title="Joindre un fichier (image, PDF, Excel, CSV...)" style="background:#444">&#128206;</button>
+<button type="button" id="cam" class="cam" title="Prendre une photo" style="background:#444"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
+<input type="file" id="camfile" accept="image/*" capture="environment" hidden>
 <input type="file" id="file" accept="image/*,.pdf,.xlsx,.xlsm,.csv,.txt,.md,.json,.py" hidden>
 <input id="q" placeholder="Pose ta question... (joins une image, un PDF ou un Excel)" autofocus autocomplete="off">
 <button>Envoyer</button></form>
@@ -145,9 +149,10 @@ renderList();remember();log.scrollTop=log.scrollHeight;q.focus()}
 function setImage(f){const img=new Image();img.onload=()=>{const s=Math.min(1,1280/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);image=c.toDataURL('image/jpeg',0.85);pimg.src=image;pimg.style.display='';pname.textContent='';prev.style.display='block'};img.src=URL.createObjectURL(f)}
 function setFile(f){const fr=new FileReader();fr.onload=()=>{att={name:f.name,data:fr.result.split(',')[1]};pimg.style.display='none';pname.textContent='\u{1F4CE} '+f.name;prev.style.display='block'};fr.readAsDataURL(f)}
 function setAny(f){if(!f)return;clearAtt();f.type.startsWith('image/')?setImage(f):setFile(f)}
-function clearAtt(){image=null;att=null;prev.style.display='none';file.value=''}
+function clearAtt(){image=null;att=null;prev.style.display='none';file.value='';$('camfile').value=''}
 $('att').onclick=()=>file.click();
 file.onchange=()=>setAny(file.files[0]);
+$('cam').onclick=()=>$('camfile').click();$('camfile').onchange=()=>setAny($('camfile').files[0]);
 $('px').onclick=clearAtt;
 $('new').onclick=()=>{if(!busy)newChat()};
 $('menu').onclick=()=>document.body.classList.toggle('menu');$('scrim').onclick=closeMenu;
