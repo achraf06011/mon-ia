@@ -1,37 +1,35 @@
-"""Génère icon.ico (à lancer une fois)."""
-import math
+"""Génère icon.ico : le logo « AA » (losange lumineux + A) pour l'icône du bureau. À lancer une fois."""
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageFilter
 
 S = 512
+VOID, ACCENT, LIGHT = (5, 5, 8, 255), (108, 99, 255, 255), (228, 224, 255, 255)
+
 img = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-# fond : carré arrondi avec dégradé bleu -> violet
-grad = Image.new("RGBA", (S, S))
-px = grad.load()
-for y in range(S):
-    for x in range(S):
-        t = (x + y) / (2 * S)
-        px[x, y] = (int(40 + 90 * t), int(90 - 20 * t), int(220 - 20 * t), 255)
-mask = Image.new("L", (S, S), 0)
-ImageDraw.Draw(mask).rounded_rectangle((16, 16, S - 16, S - 16), radius=110, fill=255)
-img.paste(grad, (0, 0), mask)
+ImageDraw.Draw(img).rounded_rectangle((8, 8, S - 8, S - 8), radius=110, fill=VOID)
 
-# grande étincelle blanche (étoile à 4 branches) + une petite
+# halo violet derrière le losange
+glow = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+c = S / 2
+diamond = [(c, 52), (S - 52, c), (c, S - 52), (52, c)]
+ImageDraw.Draw(glow).polygon(diamond, outline=ACCENT, width=26)
+glow = glow.filter(ImageFilter.GaussianBlur(22))
+img = Image.alpha_composite(img, glow)
+
 d = ImageDraw.Draw(img)
+d.polygon(diamond, fill=(22, 20, 50, 255))  # intérieur sombre teinté de violet (opaque)
+d.line(diamond + [diamond[0]], fill=ACCENT, width=18, joint="curve")
 
+# lettre A (même tracé que le logo web)
+def pt(x, y):  # coordonnées du SVG 40x40 -> 512
+    return (x / 40 * S, y / 40 * S)
 
-def sparkle(cx, cy, r, inner=0.28):
-    pts = []
-    for i in range(8):
-        a = math.pi / 4 * i - math.pi / 2
-        rr = r if i % 2 == 0 else r * inner
-        pts.append((cx + rr * math.cos(a), cy + rr * math.sin(a)))
-    d.polygon(pts, fill=(255, 255, 255, 255))
-
-
-sparkle(S * 0.46, S * 0.54, S * 0.30)
-sparkle(S * 0.74, S * 0.27, S * 0.12)
+w = 22
+d.line([pt(12.5, 27.5), pt(20, 11), pt(27.5, 27.5)], fill=LIGHT, width=w, joint="curve")
+d.line([pt(15.6, 22.2), pt(24.4, 22.2)], fill=LIGHT, width=w)
+for p in (pt(12.5, 27.5), pt(20, 11), pt(27.5, 27.5), pt(15.6, 22.2), pt(24.4, 22.2)):  # bouts arrondis
+    d.ellipse((p[0] - w / 2, p[1] - w / 2, p[0] + w / 2, p[1] + w / 2), fill=LIGHT)
 
 img.save(Path(__file__).with_name("icon.ico"), sizes=[(256, 256), (128, 128), (64, 64), (48, 48), (32, 32), (16, 16)])
 print("icon.ico créé")

@@ -145,7 +145,11 @@ EXCEL_PROMPT = (
     "résultat avec wb.save(OUTPUT)) sont déjà définies ; " + _LIBS + " ; n'écris aucun autre "
     "chemin que INPUT et OUTPUT. Utilise exactement les noms de feuilles et de colonnes "
     "de la structure ci-dessus. Garde toutes les données sauf si on te demande de les "
-    "supprimer. Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
+    "supprimer. Pour AJOUTER des lignes : ne te fie pas à ws.max_row (il compte des lignes vides mises "
+    "en forme) ; écris à partir de « dernière ligne contenant des données » + 1, continue la "
+    "numérotation/les codes existants avec des valeurs réalistes cohérentes avec les colonnes, copie "
+    "le style de la ligne précédente (bordures, formats), et si un tableau Excel existe étends sa plage "
+    "(ws.tables['nom'].ref = 'A1:G33'). Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
     "première ligne figée, filtres automatiques, largeur de colonnes ajustée, formats "
     "cohérents (dates, nombres). Je t'enverrai le résultat de l'exécution : si erreur, "
     "renvoie un nouveau script complet ; sinon explique brièvement ce que tu as fait. "
@@ -196,18 +200,81 @@ def _pdf_text(data: bytes) -> str:
     return text
 
 
+def _data_rows(ws) -> list[int]:
+    """Numéros des lignes qui contiennent vraiment des valeurs (ignore les lignes vides mises en forme)."""
+    return [
+        i for i, row in enumerate(ws.iter_rows(values_only=True), 1)
+        if any(v not in (None, "") for v in row)
+    ]
+
+
 def _excel_summary(data: bytes, rows: int = 12, cols: int = 15) -> str:
     import openpyxl
 
     wb = openpyxl.load_workbook(io.BytesIO(data))
     out = []
     for ws in wb.worksheets:
-        out.append(f"Feuille « {ws.title} » : {ws.max_row} lignes x {ws.max_column} colonnes")
+        last = (_data_rows(ws) or [0])[-1]
+        out.append(
+            f"Feuille « {ws.title} » : dernière ligne contenant des données = {last} "
+            f"(ws.max_row = {ws.max_row} inclut des lignes vides mises en forme), {ws.max_column} colonnes"
+        )
+        for t in ws.tables.values():
+            out.append(f"Tableau Excel « {t.displayName} » : plage {t.ref} (à étendre si on ajoute des lignes)")
         for row in ws.iter_rows(
             min_row=1, max_row=rows, max_col=min(cols, ws.max_column), values_only=True
         ):
             out.append(" | ".join("" if v is None else str(v)[:30] for v in row))
     return "\n".join(out)
+
+
+def _signature(data: bytes) -> list:
+    """Empreinte du contenu ET de la mise en forme, pour détecter un script qui ne change rien."""
+    import openpyxl
+
+    sig = []
+    for ws in openpyxl.load_workbook(io.BytesIO(data)).worksheets:
+        rows = [tuple(r) for r in ws.iter_rows(values_only=True)]
+        while rows and all(v in (None, "") for v in rows[-1]):
+            rows.pop()
+        style = []
+        for r in ws.iter_rows(min_row=1, max_row=3):
+            for c in r[:20]:
+                style.append((c.font.b, c.fill.fgColor.rgb if c.fill.fill_type else None, c.number_format))
+        sig.append((
+            ws.title, rows, style, ws.freeze_panes, ws.auto_filter.ref,
+            sorted((k, round(v.width or 0)) for k, v in ws.column_dimensions.items()),
+            sorted(str(m) for m in ws.merged_cells.ranges),
+            sorted((t.displayName, t.ref) for t in ws.tables.values()),
+        ))
+    return sig
+
+
+def _check_result(base: bytes, new: bytes) -> str | None:
+    """Refuse un résultat suspect (aucun changement, ou lignes écrites loin sous les données)."""
+    import openpyxl
+
+    if _signature(base) == _signature(new):
+        return (
+            "Aucune modification détectée : le fichier produit est identique à l'original. "
+            "Refais le script pour que la demande soit réellement appliquée "
+            "(pour ajouter des lignes, écris-les juste après la dernière ligne contenant des données)."
+        )
+    old_ws = {w.title: w for w in openpyxl.load_workbook(io.BytesIO(base)).worksheets}
+    for ws in openpyxl.load_workbook(io.BytesIO(new)).worksheets:
+        rows = _data_rows(ws)
+        gap = max((b - a - 1 for a, b in zip(rows, rows[1:])), default=0)
+        before = _data_rows(old_ws[ws.title]) if ws.title in old_ws else []
+        old_gap = max((b - a - 1 for a, b in zip(before, before[1:])), default=0)
+        if gap >= 3 and gap > old_gap:
+            start = next(a for a, b in zip(rows, rows[1:]) if b - a - 1 == gap)
+            return (
+                f"Feuille « {ws.title} » : des données ont été écrites après un trou de {gap} lignes "
+                f"vides (après la ligne {start}) : elles seraient invisibles. N'utilise PAS ws.max_row : "
+                f"ajoute les lignes directement sous la dernière ligne contenant des données "
+                f"(ligne {before[-1] if before else start}), puis étends le tableau Excel s'il y en a un."
+            )
+    return None
 
 
 def _csv_to_xlsx(data: bytes) -> bytes:
@@ -303,8 +370,11 @@ class Chat:
             return msg
         try:
             summary = _excel_summary(data)
+            problem = _check_result(base, data)
         except Exception:
             return "Erreur : le fichier produit n'est pas un classeur Excel valide."
+        if problem:
+            return "Résultat refusé : " + problem
         db.put_file(self.conv_id, "current.xlsx", "excel", data)  # devient le classeur courant
         name = f"organise_{Path(self.excel_name).stem}.xlsx"
         db.put_file(self.conv_id, name, "output", data)

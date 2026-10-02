@@ -65,12 +65,21 @@ button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#ff
 .a th,.a td{border:1px solid #3a3a3a;padding:8px 12px;text-align:left;vertical-align:top}
 .a th{background:#2c2c2c}.a tr:nth-child(even) td{background:#1c1c1c}
 .dl{display:inline-block;margin:10px 8px 0 0;padding:8px 14px;border-radius:8px;background:#1f8a4c;color:#fff;text-decoration:none}
+
+.logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff;padding:4px 6px 8px}
+.mark{width:40px;height:40px;flex:none;display:block;filter:drop-shadow(0 0 6px rgba(108,99,255,.55));transition:filter .4s}
+.mark svg{display:block}
+.logo:hover .mark{filter:drop-shadow(0 0 11px rgba(108,99,255,.95))}
+.word{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:300;letter-spacing:.08em}
+.word b{color:#6c63ff;font-weight:300}
 @media(max-width:700px){aside{display:none}}
 </style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23050508'/%3E%3Cpolygon points='20,3 37,20 20,37 3,20' fill='%236c63ff' fill-opacity='.18' stroke='%236c63ff' stroke-width='2.2' stroke-linejoin='round'/%3E%3Cpath d='M12.5 27 L20 11.5 L27.5 27 M15.7 22 H24.3' fill='none' stroke='%23e4e0ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 </head><body>
-<aside><button id="new">+ Nouvelle conversation</button><div id="list"></div>
+<aside><div class="logo"><span class="mark"><svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><polygon points="20,2 38,20 20,38 2,20" fill="rgba(108,99,255,.14)" stroke="#6c63ff" stroke-width="2" stroke-linejoin="round"/><path d="M12.5 27.5 L20 11 L27.5 27.5 M15.6 22.2 H24.4" fill="none" stroke="#e4e0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><button id="new">+ Nouvelle conversation</button><div id="list"></div>
 <div class="me"><span id="uname"></span><button id="out">Déconnexion</button></div></aside>
 <main>
 <div id="log"></div>
@@ -134,6 +143,13 @@ LOGIN_PAGE = r"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 :root{color-scheme:dark}
 body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
 .card{width:340px;max-width:92vw;background:#1a1a1a;border:1px solid #2c2c2c;border-radius:14px;padding:28px}
+.card{--logo-bg:#1a1a1a}
+.logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff;padding:0 0 14px}
+.mark{width:40px;height:40px;flex:none;display:block;filter:drop-shadow(0 0 6px rgba(108,99,255,.55));transition:filter .4s}
+.mark svg{display:block}
+.logo:hover .mark{filter:drop-shadow(0 0 11px rgba(108,99,255,.95))}
+.word{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:300;letter-spacing:.08em}
+.word b{color:#6c63ff;font-weight:300}
 h1{margin:0 0 4px;font-size:22px}.sub{color:#999;font-size:14px;margin-bottom:20px}
 .tabs{display:flex;gap:6px;margin-bottom:16px}
 .tabs button{flex:1;padding:9px;border-radius:8px;border:1px solid #333;background:#111;color:#bbb;cursor:pointer}
@@ -142,9 +158,12 @@ label{display:block;font-size:13px;color:#aaa;margin:12px 0 5px}
 input{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px solid #444;background:#111;color:#eee;font-size:16px}
 .go{width:100%;margin-top:18px;padding:12px;border:0;border-radius:8px;background:#2a4d8f;color:#fff;font-size:16px;cursor:pointer}
 .err{color:#ff7b7b;font-size:14px;margin-top:12px;min-height:18px}
-</style></head><body>
+</style>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23050508'/%3E%3Cpolygon points='20,3 37,20 20,37 3,20' fill='%236c63ff' fill-opacity='.18' stroke='%236c63ff' stroke-width='2.2' stroke-linejoin='round'/%3E%3Cpath d='M12.5 27 L20 11.5 L27.5 27 M15.7 22 H24.3' fill='none' stroke='%23e4e0ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet">
+</head><body>
 <form class="card" id="f">
-<h1>&#10024; Mon IA</h1><div class="sub">Ton assistant personnel, avec ton propre historique.</div>
+<div class="logo"><span class="mark"><svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><polygon points="20,2 38,20 20,38 2,20" fill="rgba(108,99,255,.14)" stroke="#6c63ff" stroke-width="2" stroke-linejoin="round"/><path d="M12.5 27.5 L20 11 L27.5 27.5 M15.6 22.2 H24.4" fill="none" stroke="#e4e0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><h1>Mon IA</h1><div class="sub">Ton assistant personnel, avec ton propre historique.</div>
 <div class="tabs"><button type="button" id="t1" class="on">Connexion</button><button type="button" id="t2">Créer un compte</button></div>
 <label for="u">Nom d'utilisateur</label><input id="u" autocomplete="username" required maxlength="30" autofocus>
 <label for="p">Mot de passe</label><input id="p" type="password" autocomplete="current-password" required>
