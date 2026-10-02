@@ -1,10 +1,12 @@
 """Coeur de l'agent : plusieurs fournisseurs gratuits avec bascule automatique,
 conversations par utilisateur (base de données), lecture de PDF/Excel/images,
 création de fichiers Excel / Word / PDF."""
+import datetime
 import io
 import json
 import os
 import re
+import time
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -47,27 +49,23 @@ DOC_PROMPT = (
 # Si l'un est saturé (quota) ou lent, le suivant prend le relais automatiquement.
 # Les modèles peuvent être changés dans .env (les modèles gratuits évoluent).
 GROQ_VISION = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.8-27b")
+GROQ_URL = "https://api.groq.com/openai/v1"
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 PROVIDERS = [
     {
         "name": "Groq",
         "key": "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
+        "base_url": GROQ_URL,
         "model": os.getenv("GROQ_MODEL", "openai/gpt-oss-120b"),
         "vision": True,
         "vision_model": GROQ_VISION,
+        "vision_max_tokens": 900,  # ce modèle plafonne à 1000 tokens de sortie / minute
     },
-    {  # autre modèle Groq : quota séparé, utile quand le premier est saturé
-        "name": "Groq (Qwen)",
+    {  # plus petit modèle Groq : quota journalier séparé du premier
+        "name": "Groq (20B)",
         "key": "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
-        "model": GROQ_VISION,
-    },
-    {
-        "name": "OpenRouter (Qwen)",
-        "key": "OPENROUTER_API_KEY",
-        "base_url": "https://openrouter.ai/api/v1",
-        "model": os.getenv("OPENROUTER_MODEL", "qwen/qwen3-235b-a22b:free"),
+        "base_url": GROQ_URL,
+        "model": os.getenv("GROQ_SMALL_MODEL", "openai/gpt-oss-20b"),
     },
     {
         "name": "Gemini",
@@ -85,9 +83,22 @@ PROVIDERS = [
         "vision": True,
         "vision_model": os.getenv("GEMINI_LITE_MODEL", "gemini-3.1-flash-lite"),
     },
+    {  # dernier recours : limité à 1000 tokens de sortie / minute côté Groq
+        "name": "Groq (Qwen)",
+        "key": "GROQ_API_KEY",
+        "base_url": GROQ_URL,
+        "model": GROQ_VISION,
+        "max_tokens": 900,
+    },
+    {
+        "name": "OpenRouter (Qwen)",
+        "key": "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
+        "model": os.getenv("OPENROUTER_MODEL", "qwen/qwen3-235b-a22b:free"),
+    },
 ]
 
-MAX_HISTORY = 20  # messages envoyés à l'IA (tout est quand même sauvegardé)
+MAX_HISTORY = 12  # messages envoyés à l'IA (tout est quand même sauvegardé)
 MAX_FILE_CHARS = int(os.getenv("MAX_FILE_CHARS", "20000"))  # texte PDF envoyé à l'IA
 # Mettre ENABLE_EXCEL_SCRIPTS=0 pour interdire la modification d'Excel (analyse seulement)
 EXCEL_EDIT = os.getenv("ENABLE_EXCEL_SCRIPTS", "1") != "0"
@@ -171,15 +182,64 @@ def display_text(text: str) -> str:
     return DOC_RE.sub(mention, text).strip()
 
 
-def _create(client, model, msgs, tools):
+def _create(client, model, msgs, tools, max_tokens=None):
     """Appel API avec nouvelle tentative si le modèle formate mal un appel d'outil."""
+    extra = {"max_tokens": max_tokens} if max_tokens else {}
     for attempt in range(3):
         try:
-            return client.chat.completions.create(model=model, messages=msgs, tools=tools)
+            return client.chat.completions.create(model=model, messages=msgs, tools=tools, **extra)
         except Exception as e:
             if "tool_use_failed" in str(e) and attempt < 2:
                 continue
             raise
+
+
+_COOLDOWN: dict[str, float] = {}  # fournisseur -> heure avant laquelle on ne le réessaie pas
+
+
+def _wait_seconds(msg: str) -> float | None:
+    """Extrait « try again in 14m22.7s » d'un message d'erreur de limite."""
+    m = re.search(r"try again in (?:(\d+)h)?(?:(\d+)m)?(?:([\d.]+)s)?", msg)
+    if not m or not any(m.groups()):
+        return None
+    h, mi, sec = (float(x) if x else 0 for x in m.groups())
+    return h * 3600 + mi * 60 + sec
+
+
+def _explain(e: Exception) -> tuple[str, float]:
+    """(explication lisible, secondes pendant lesquelles ne pas réessayer ce fournisseur)."""
+    msg = str(e)
+    low = msg.lower()
+    wait = _wait_seconds(msg)
+    if "invalid auth" in low or "api key" in low or "401" in low[:30] or "403" in low[:30]:
+        return "clé API refusée ou invalide", 3600
+    if "tokens per day" in low or "per day" in low:
+        mins = f" (réessaie dans ~{int(wait // 60) + 1} min)" if wait else ""
+        return "limite journalière gratuite atteinte" + mins, min(wait or 1800, 3600)
+    if "429" in low[:30] or "rate limit" in low or "quota" in low:
+        return "limite de débit atteinte, patiente un peu", min(wait or 60, 600)
+    if "503" in low[:30] or "unavailable" in low or "high demand" in low or "overloaded" in low:
+        return "service surchargé", 30
+    if "timed out" in low or "timeout" in low:
+        return "trop lent à répondre", 30
+    if "404" in low[:30] or "not found" in low or "does not exist" in low:
+        return "modèle indisponible", 600
+    return msg[:140], 20
+
+
+_JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
+_MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+         "septembre", "octobre", "novembre", "décembre"]
+DOC_HINT = re.compile(
+    r"lettre|\bcv\b|curriculum|rapport|word|docx|pdf|document|contrat|devis|fiche|attestation|"
+    r"cr[ée]e|g[ée]n[èe]re|fichier|t[ée]l[ée]charg|modifie|corrige|rends",
+    re.IGNORECASE,
+)
+
+
+def _today() -> str:
+    d = datetime.date.today()
+    return f"{_JOURS[d.weekday()]} {d.day} {_MOIS[d.month - 1]} {d.year}"
 
 
 def _clean(text: str) -> str:
@@ -208,7 +268,7 @@ def _data_rows(ws) -> list[int]:
     ]
 
 
-def _excel_summary(data: bytes, rows: int = 12, cols: int = 15) -> str:
+def _excel_summary(data: bytes, rows: int = 8, cols: int = 12) -> str:
     import openpyxl
 
     wb = openpyxl.load_workbook(io.BytesIO(data))
@@ -405,12 +465,21 @@ class Chat:
         # L'historique ne garde que le texte court (fichiers/images coûtent beaucoup de tokens)
         self.history.append({"role": "user", "content": question + marker})
 
-        system = SYSTEM_PROMPT + "\n\n" + DOC_PROMPT
+        system = SYSTEM_PROMPT + f"\n\nDate d'aujourd'hui : {_today()}."
+        recent = self.history[-5:-1]
+        if DOC_HINT.search(question) or any("```document_" in m["content"] for m in recent):
+            system += "\n\n" + DOC_PROMPT
         base = self._excel()
         if base:
             tpl = EXCEL_PROMPT if EXCEL_EDIT else EXCEL_READONLY_PROMPT
             system += "\n\n" + tpl.format(name=self.excel_name, summary=_excel_summary(base))
-        messages = [{"role": "system", "content": system}, *self.history[-MAX_HISTORY:]]
+        ctx = self.history[-MAX_HISTORY:]
+        # les anciennes réponses longues sont tronquées pour économiser les tokens gratuits
+        ctx = [
+            {**m, "content": m["content"][:1500]} if (m["role"] == "assistant" and i < len(ctx) - 4) else m
+            for i, m in enumerate(ctx)
+        ]
+        messages = [{"role": "system", "content": system}, *ctx]
         if image:
             messages[-1] = {
                 "role": "user",
@@ -430,6 +499,9 @@ class Chat:
             self.history.pop()
             raise RuntimeError("Aucun fournisseur disponible pour cette demande (clé API manquante).")
 
+        now = time.time()
+        # on saute les fournisseurs en pause (quota épuisé, clé invalide...) sauf si tous le sont
+        providers = [p for p in providers if _COOLDOWN.get(p["name"], 0) <= now] or providers
         errors = []
         for idx, p in enumerate(providers):
             try:
@@ -447,7 +519,7 @@ class Chat:
                 msgs = list(messages)
                 stored = shown = ""
                 for _ in range(12):  # boucle : recherche web / script Excel
-                    r = _create(client, model, msgs, tools)
+                    r = _create(client, model, msgs, tools, p.get("vision_max_tokens" if image else "max_tokens"))
                     m = r.choices[0].message
                     if m.tool_calls:
                         msgs.append(m)
@@ -515,8 +587,14 @@ class Chat:
                 self.save()
                 return shown, p["name"]
             except Exception as e:  # quota, réseau, modèle indisponible...
-                errors.append(f"{p['name']}: {e}")
+                why, pause = _explain(e)
+                _COOLDOWN[p["name"]] = time.time() + pause
+                errors.append(f"• {p['name']} : {why}")
                 self.turn_files = []
 
         self.history.pop()  # on retire la question qui n'a pas eu de réponse
-        raise RuntimeError("Tous les fournisseurs ont échoué :\n" + "\n".join(errors))
+        raise RuntimeError(
+            "Les services d'IA gratuits sont momentanément indisponibles :\n"
+            + "\n".join(errors)
+            + "\nRéessaie dans quelques minutes."
+        )
