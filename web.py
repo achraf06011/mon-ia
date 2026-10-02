@@ -20,7 +20,8 @@ from agent import Chat, available_providers
 ONLINE = bool(os.getenv("PORT"))  # l'hébergeur définit PORT
 PORT = int(os.getenv("PORT", "8002"))
 HOST = "0.0.0.0" if ONLINE else "127.0.0.1"
-SIGNUP_CODE = os.getenv("SIGNUP_CODE", "").strip()  # si défini : requis pour créer un compte
+# Clés d'accès pour créer un compte (une ou plusieurs, séparées par des virgules : une clé par personne)
+SIGNUP_CODES = [c.strip() for c in os.getenv("SIGNUP_CODE", "").split(",") if c.strip()]
 ALLOW_SIGNUP = os.getenv("ALLOW_SIGNUP", "1") != "0"
 DAILY_LIMIT = int(os.getenv("DAILY_LIMIT", "50"))  # messages / jour / utilisateur (0 = illimité)
 MAX_BODY = (4 if os.getenv("VERCEL") else 12) * 1024 * 1024  # Vercel : 4,5 Mo max
@@ -198,7 +199,7 @@ input{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px
 <div class="tabs"><button type="button" id="t1" class="on">Connexion</button><button type="button" id="t2">Créer un compte</button></div>
 <label for="u">Nom d'utilisateur</label><input id="u" autocomplete="username" required maxlength="30" autofocus>
 <label for="p">Mot de passe</label><input id="p" type="password" autocomplete="current-password" required>
-<div id="cw" style="display:none"><label for="c">Code d'invitation</label><input id="c" autocomplete="off"></div>
+<div id="cw" style="display:none"><label for="c">Clé d'accès</label><input id="c" autocomplete="off"></div>
 <button class="go" id="go">Se connecter</button><div class="err" id="err"></div>
 </form>
 <script>
@@ -300,7 +301,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path, qs = self._route()
         if path == "/api/config":
-            return self._json({"needs_code": bool(SIGNUP_CODE), "signup": ALLOW_SIGNUP})
+            return self._json({"needs_code": bool(SIGNUP_CODES), "signup": ALLOW_SIGNUP})
         user = self._user()
         if path == "/":
             return self._send((PAGE if user else LOGIN_PAGE).encode(), "text/html")
@@ -379,8 +380,9 @@ class Handler(BaseHTTPRequestHandler):
         if mode == "signup":
             if not ALLOW_SIGNUP:
                 return self._json({"error": "Les inscriptions sont fermées."}, 403)
-            if SIGNUP_CODE and not hmac.compare_digest(str(data.get("code", "")), SIGNUP_CODE):
-                return self._json({"error": "Code d'invitation incorrect."}, 403)
+            given = str(data.get("code", ""))
+            if SIGNUP_CODES and not any(hmac.compare_digest(given, c) for c in SIGNUP_CODES):
+                return self._json({"error": "Clé d'accès incorrecte."}, 403)
             if not USER_RE.match(username):
                 return self._json({"error": "Nom d'utilisateur : 3 à 30 caractères (lettres, chiffres, . _ -)."})
             if len(password) < 8:

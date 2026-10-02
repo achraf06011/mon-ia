@@ -3,16 +3,16 @@
 **Assistant IA personnel, gratuit, avec comptes utilisateurs et historique privé.**
 Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, des images et des fichiers Excel, et **génère des fichiers Word, PDF et Excel** à télécharger.
 
-🔗 **Démo en ligne : https://achraf-agent.vercel.app** *(inscription sur invitation : demande-moi un accès)*
+🔗 **https://achraf-agent.vercel.app** · accès **privé sur invitation** : seules les personnes disposant d'une *clé d'accès* peuvent créer un compte.
 
-![Démo](docs/demo.gif)
+![Aperçu](docs/demo.gif)
 
 ## Fonctionnalités
 
 - 💬 **Chat sur tous les domaines**, réponses mises en forme (titres, listes, tableaux, code), avec **recherche web** pour l'actualité
 - 👤 **Comptes utilisateurs** : chaque personne a son propre historique de conversations (renommer, supprimer, copier une réponse)
 - 📄 **Lecture de PDF** et d'**images** (analyse, résumé, questions)
-- 📊 **Excel** : envoie un classeur et dis ce que tu veux (« trie par date », « ajoute 20 équipements », « mets en forme ») → le fichier modifié est à télécharger *(la modification est désactivée sur la démo publique par sécurité ; l'analyse reste possible. Active-la en local ou sur ton propre déploiement avec `ENABLE_EXCEL_SCRIPTS=1`)*
+- 📊 **Excel** : envoie un classeur et dis ce que tu veux (« trie par date », « ajoute 20 équipements », « mets en forme ») → le fichier modifié est à télécharger *(la modification est désactivée sur le site en ligne par sécurité ; l'analyse reste possible. Active-la en local ou sur ton propre déploiement avec `ENABLE_EXCEL_SCRIPTS=1`)*
 - 📝 **Création de documents** Word et PDF (lettres, CV, rapports) à partir d'une simple demande
 - 🔁 **Bascule automatique entre fournisseurs d'IA gratuits** quand l'un est saturé ou en panne (Groq → Gemini → …), avec messages d'erreur lisibles
 - 📱 **Responsive** : menu coulissant sur mobile
@@ -45,7 +45,7 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 - **Fournisseurs en cascade** : chaque requête essaie les modèles dans l'ordre ; un modèle en panne ou dont le quota est épuisé est mis en pause automatiquement.
 - **Excel** : l'IA écrit un script Python (openpyxl) qui est **vérifié** (imports autorisés, pas d'accès fichiers/réseau) puis exécuté dans un processus isolé **sans aucune clé d'API**. Le résultat est contrôlé (fichier réellement modifié, pas de lignes perdues loin sous les données) avant d'être proposé au téléchargement.
 - **Documents** : l'IA rédige en Markdown, converti en `.docx` et `.pdf` côté serveur.
-- **Sécurité** : mots de passe hachés (scrypt), sessions en cookie `HttpOnly`/`SameSite`, protection CSRF, limitation des tentatives de connexion, quota de messages par jour, code d'invitation à l'inscription, isolation stricte des données entre utilisateurs.
+- **Sécurité** : mots de passe hachés (scrypt), sessions en cookie `HttpOnly`/`SameSite`, protection CSRF, limitation des tentatives de connexion, quota de messages par jour, clé d'accès obligatoire à l'inscription (une clé par personne, révocable), isolation stricte des données entre utilisateurs.
 
 ## Lancer en local
 
