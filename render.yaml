@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: mon-ia
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python web.py
+    healthCheckPath: /api/config
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: DATABASE_URL        # chaîne de connexion Neon (postgresql://...)
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SIGNUP_CODE         # code d'invitation pour s'inscrire
+        sync: false
+      - key: DAILY_LIMIT
+        value: "50"
