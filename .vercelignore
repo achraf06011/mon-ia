@@ -13,3 +13,4 @@ Dockerfile
 .dockerignore
 render.yaml
 *.md
+docs/

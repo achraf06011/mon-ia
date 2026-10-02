@@ -29,20 +29,28 @@ USER_RE = re.compile(r"^[a-z0-9_.-]{3,30}$")
 
 PAGE = r"""<!doctype html><html lang="fr"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#050508">
 <title>Mon IA</title>
 <style>
 :root{color-scheme:dark}
-body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0;display:flex;height:100vh}
+body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0;display:flex;height:100vh;height:100dvh}
 aside{width:260px;flex:none;background:#0b0b0b;border-right:1px solid #222;display:flex;flex-direction:column;padding:10px;gap:10px;box-sizing:border-box}
 #list{flex:1;overflow-y:auto}
 .item{padding:9px 10px;border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;gap:6px;font-size:14px;margin-bottom:2px}
 .item:hover{background:#1c1c1c}.item.on{background:#242b3d}
 .item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.item b{opacity:0;color:#e66;cursor:pointer;padding:0 4px}.item:hover b{opacity:1}
+.act{display:flex;flex:none;gap:2px}
+.item b,.item i{opacity:0;cursor:pointer;padding:0 5px;font-style:normal;font-weight:400}.item b{color:#e66}.item i{color:#9a92ff}
+.item:hover b,.item:hover i{opacity:1}
+@media(hover:none){.item b,.item i{opacity:.75}}
+.tools{margin-top:10px;display:flex;gap:8px}.tools button{background:#2c2c2c;padding:5px 11px;font-size:12px;color:#bbb;border:1px solid #333}.tools button:hover{color:#fff}
+@keyframes pulse{50%{opacity:.35}}.status{color:#9a92ff;animation:pulse 1.4s infinite}
+#top,.scrim{display:none}
+#top .mark svg{width:34px;height:34px}#top .mark{width:34px;height:34px}#top .word{font-size:24px}
 .empty{color:#777;font-size:13px;padding:8px}
 .me{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#aaa;border-top:1px solid #222;padding-top:10px}
 .me button{padding:6px 10px;font-size:12px;background:#333}
-main{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh}
+main{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;height:100dvh}
 #log{flex:1;overflow-y:auto;padding:16px;max-width:800px;width:100%;margin:0 auto;box-sizing:border-box}
 .m{padding:10px 14px;margin:8px 0;border-radius:10px;white-space:pre-wrap;line-height:1.5}
 .u{background:#2a4d8f;margin-left:20%}.a{background:#222;margin-right:10%}
@@ -72,16 +80,26 @@ button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#ff
 .logo:hover .mark{filter:drop-shadow(0 0 7px rgba(140,128,255,1)) drop-shadow(0 0 18px rgba(108,99,255,.8))}
 .word{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:300;letter-spacing:.06em}
 .word b{color:#6c63ff;font-weight:300}
-@media(max-width:700px){aside{display:none}}
+@media(max-width:700px){
+aside{position:fixed;z-index:30;top:0;bottom:0;left:0;width:82vw;max-width:310px;transform:translateX(-100%);transition:transform .25s}
+body.menu aside{transform:none;box-shadow:0 0 40px rgba(0,0,0,.7)}
+body.menu .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20}
+#top{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #222}
+#top button{background:#222;padding:6px 12px;font-size:20px;line-height:1}
+#top .logo{padding:0}
+.u{margin-left:8%}.a{margin-right:2%}#log{padding:12px}
+}
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23050508'/%3E%3Cpolygon points='50,6 94,50 50,94 6,50' fill='none' stroke='%239a92ff' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M39 27 L28 77 M60.4 27 L71 77 M39 27 L49.7 43 L60.4 27 M32.6 59 H46.4 M53.6 59 H67.4' fill='none' stroke='%239a92ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 </head><body>
+<div class="scrim" id="scrim"></div>
 <aside><div class="logo"><span class="mark"><svg viewBox="0 0 100 100" width="46" height="46" aria-hidden="true"><polygon points="50,4 96,50 50,96 4,50" fill="none" stroke="#9a92ff" stroke-width="3.2" stroke-linejoin="round"/><path d="M39 26.7 L27.9 77.6 M60.4 26.7 L70.8 77.6 M39 26.7 L49.7 43 L60.4 26.7 M32.6 59 H46.4 M53.6 59 H67.4" fill="none" stroke="#9a92ff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><button id="new">+ Nouvelle conversation</button><div id="list"></div>
 <div class="me"><span id="uname"></span><button id="out">Déconnexion</button></div></aside>
 <main>
+<div id="top"><button id="menu" aria-label="Menu">&#9776;</button><div class="logo"><span class="mark"><svg viewBox="0 0 100 100" width="46" height="46" aria-hidden="true"><polygon points="50,4 96,50 50,96 4,50" fill="none" stroke="#9a92ff" stroke-width="3.2" stroke-linejoin="round"/><path d="M39 26.7 L27.9 77.6 M60.4 26.7 L70.8 77.6 M39 26.7 L49.7 43 L60.4 26.7 M32.6 59 H46.4 M53.6 59 H67.4" fill="none" stroke="#9a92ff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div></div>
 <div id="log"></div>
 <div id="prev" style="display:none;max-width:800px;width:100%;margin:0 auto;padding:0 12px;box-sizing:border-box">
 <img id="pimg" style="height:70px;border-radius:8px;vertical-align:middle"><span id="pname"></span> <button type="button" id="px" style="background:#444;padding:4px 10px">&times;</button></div>
@@ -96,6 +114,13 @@ const log=$('log'),q=$('q'),prev=$('prev'),pimg=$('pimg'),pname=$('pname'),file=
 let image=null,att=null,busy=false,convId=null,list=[];
 function render(el,t){if(window.marked&&window.DOMPurify){el.innerHTML=DOMPurify.sanitize(marked.parse(t,{breaks:true}))}else{el.style.whiteSpace='pre-wrap';el.textContent=t}}
 function add(c,t,img,label){const d=document.createElement('div');d.className='m '+c;if(img){const i=document.createElement('img');i.src=img;i.style='max-height:160px;border-radius:8px;display:block;margin-bottom:6px';d.appendChild(i)}if(label)d.appendChild(document.createTextNode('\u{1F4CE} '+label+'\n'));d.appendChild(document.createTextNode(t));log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+function closeMenu(){document.body.classList.remove('menu')}
+async function copyText(t,btn){try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}btn.textContent='Copié \u2713';setTimeout(()=>btn.textContent='Copier',1500)}
+function addTools(el,text){const d=document.createElement('div');d.className='tools';const b=document.createElement('button');b.type='button';b.textContent='Copier';b.onclick=()=>copyText(text,b);d.appendChild(b);el.appendChild(d)}
+function typeInto(el,text,done){const parts=text.split(/(\s+)/);const per=Math.max(1,Math.ceil(parts.length/90));let i=0;
+(function tick(){i=Math.min(parts.length,i+per);render(el,parts.slice(0,i).join(''));log.scrollTop=log.scrollHeight;if(i<parts.length)setTimeout(tick,22);else if(done)done()})()}
+function statusFor(t,a,img){if(a){if(/\.(xlsx|xlsm|csv)$/i.test(a.name))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(a.name))return 'Lecture du PDF\u2026';return 'Lecture du fichier\u2026'}
+if(img)return 'Analyse de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
 function links(el,names){names.forEach(n=>{const l=document.createElement('a');l.className='dl';l.href='/download?c='+convId+'&f='+encodeURIComponent(n);l.textContent='⬇ '+n;l.download=n;el.appendChild(l)})}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',body:JSON.stringify(body)});if(r.status===401){location.reload();throw new Error('Session expirée')}return r.json()}
 function renderList(){const box=$('list');box.innerHTML='';
@@ -104,13 +129,16 @@ list.forEach(c=>{const d=document.createElement('div');d.className='item'+(c.id=
 const s=document.createElement('span');s.textContent=c.title;d.appendChild(s);
 const x=document.createElement('b');x.textContent='×';x.title='Supprimer';
 x.onclick=async e=>{e.stopPropagation();if(!confirm('Supprimer cette conversation ?'))return;await api('/api/delete',{id:c.id});if(c.id===convId)newChat();await refresh()};
-d.appendChild(x);d.onclick=()=>{if(c.id!==convId&&!busy)openConv(c.id)};box.appendChild(d)})}
+const e=document.createElement('i');e.textContent='\u270E';e.title='Renommer';
+e.onclick=async ev=>{ev.stopPropagation();const t=prompt('Nouveau titre :',c.title);if(t&&t.trim()){await api('/api/rename',{id:c.id,title:t.trim()});await refresh()}};
+const act=document.createElement('span');act.className='act';act.appendChild(e);act.appendChild(x);d.appendChild(act);
+d.onclick=()=>{if(c.id!==convId&&!busy){closeMenu();openConv(c.id)}};box.appendChild(d)})}
 async function refresh(){list=(await api('/api/conversations')).list;renderList()}
 function remember(){try{convId?localStorage.setItem('last',convId):localStorage.removeItem('last')}catch(e){}}
-function newChat(){convId=null;log.innerHTML='';clearAtt();renderList();remember();q.focus()}
+function newChat(){closeMenu();convId=null;log.innerHTML='';clearAtt();renderList();remember();q.focus()}
 async function openConv(id){const s=await api('/api/conversation?id='+id);if(s.error){newChat();return}
 convId=s.id;log.innerHTML='';clearAtt();
-s.messages.forEach(m=>{const d=add(m.role==='user'?'u':'a',m.text);if(m.role!=='user')render(d,m.text)});
+s.messages.forEach(m=>{const d=add(m.role==='user'?'u':'a',m.text);if(m.role!=='user'){render(d,m.text);addTools(d,m.text)}});
 if(s.downloads.length){const d=add('a','\u{1F4C1} Fichiers de cette conversation :\n');links(d,s.downloads)}
 renderList();remember();log.scrollTop=log.scrollHeight;q.focus()}
 function setImage(f){const img=new Image();img.onload=()=>{const s=Math.min(1,1280/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);image=c.toDataURL('image/jpeg',0.85);pimg.src=image;pimg.style.display='';pname.textContent='';prev.style.display='block'};img.src=URL.createObjectURL(f)}
@@ -121,15 +149,18 @@ $('att').onclick=()=>file.click();
 file.onchange=()=>setAny(file.files[0]);
 $('px').onclick=clearAtt;
 $('new').onclick=()=>{if(!busy)newChat()};
+$('menu').onclick=()=>document.body.classList.toggle('menu');$('scrim').onclick=closeMenu;
 $('out').onclick=async()=>{await fetch('/api/logout',{method:'POST',body:'{}'});try{localStorage.removeItem('last')}catch(e){}location.reload()};
 document.addEventListener('paste',e=>{for(const it of e.clipboardData.items)if(it.type.startsWith('image/')){setAny(it.getAsFile());break}});
 $('f').onsubmit=async e=>{e.preventDefault();if(busy)return;const t=q.value.trim();if(!t&&!image&&!att)return;q.value='';
-const img=image,a=att;clearAtt();add('u',t,img,a&&a.name);const w=add('a','...');busy=true;
+const img=image,a=att;clearAtt();add('u',t,img,a&&a.name);const w=add('a','');w.className='m a status';w.textContent=statusFor(t,a,img);busy=true;
 try{const r=await api('/ask',{conv:convId,q:t,image:img,file:a});
-render(w,r.error?('Erreur : '+r.error):r.answer);
+w.className='m a';w.textContent='';
 if(r.id){convId=r.id;remember()}
-if(r.downloads&&r.downloads.length)links(w,r.downloads);
-if(r.list){list=r.list;renderList()}}catch(err){render(w,'Erreur : '+err)}
+if(r.list){list=r.list;renderList()}
+if(r.error){render(w,'Erreur : '+r.error)}
+else await new Promise(res=>typeInto(w,r.answer,()=>{if(r.downloads&&r.downloads.length)links(w,r.downloads);addTools(w,r.answer);res()}))}
+catch(err){w.className='m a';render(w,'Erreur : '+err)}
 busy=false;log.scrollTop=log.scrollHeight};
 (async()=>{const me=await api('/api/me');$('uname').textContent=me.username;await refresh();
 let last=null;try{last=localStorage.getItem('last')}catch(e){}
@@ -329,6 +360,11 @@ class Handler(BaseHTTPRequestHandler):
             cid = data.get("id", "")
             if ID_RE.match(cid):
                 db.delete_conv(user.id, cid)
+            return self._json({})
+        if self.path == "/api/rename":
+            cid, title = data.get("id", ""), str(data.get("title", "")).strip()[:80]
+            if ID_RE.match(cid) and title:
+                db.rename_conv(user.id, cid, title)
             return self._json({})
         if self.path == "/ask":
             return self._json(self._ask(user, data))

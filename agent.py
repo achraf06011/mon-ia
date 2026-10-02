@@ -74,6 +74,7 @@ PROVIDERS = [
         "model": os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
         "vision": True,
         "vision_model": os.getenv("GEMINI_MODEL", "gemini-3.5-flash"),
+        "options": {"reasoning_effort": "low"},  # réflexion légère : réponses ~3x plus rapides
     },
     {  # modèle plus léger : souvent disponible quand le principal est surchargé
         "name": "Gemini (Lite)",
@@ -82,6 +83,7 @@ PROVIDERS = [
         "model": os.getenv("GEMINI_LITE_MODEL", "gemini-3.1-flash-lite"),
         "vision": True,
         "vision_model": os.getenv("GEMINI_LITE_MODEL", "gemini-3.1-flash-lite"),
+        "options": {"reasoning_effort": "low"},
     },
     {  # dernier recours : limité à 1000 tokens de sortie / minute côté Groq
         "name": "Groq (Qwen)",
@@ -162,8 +164,9 @@ EXCEL_PROMPT = (
     "le style de la ligne précédente (bordures, formats), et si un tableau Excel existe étends sa plage "
     "(ws.tables['nom'].ref = 'A1:G33'). Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
     "première ligne figée, filtres automatiques, largeur de colonnes ajustée, formats "
-    "cohérents (dates, nombres). Je t'enverrai le résultat de l'exécution : si erreur, "
-    "renvoie un nouveau script complet ; sinon explique brièvement ce que tu as fait. "
+    "cohérents (dates, nombres). Commence ton script par UNE ligne de commentaire de la forme "
+    "« # RESUME: ce que tu fais, en une phrase en français ». Je t'enverrai le résultat de "
+    "l'exécution : si erreur, renvoie un nouveau script complet. "
     "Si la demande ne nécessite pas de modifier le fichier (simple question), réponds normalement."
 )
 EXCEL_READONLY_PROMPT = (
@@ -182,13 +185,20 @@ def display_text(text: str) -> str:
     return DOC_RE.sub(mention, text).strip()
 
 
-def _create(client, model, msgs, tools, max_tokens=None):
+def _create(client, model, msgs, tools, max_tokens=None, options=None):
     """Appel API avec nouvelle tentative si le modèle formate mal un appel d'outil."""
     extra = {"max_tokens": max_tokens} if max_tokens else {}
+    extra.update(options or {})
     for attempt in range(3):
         try:
-            return client.chat.completions.create(model=model, messages=msgs, tools=tools, **extra)
+            if tools:
+                extra["tools"] = tools
+            return client.chat.completions.create(model=model, messages=msgs, **extra)
         except Exception as e:
+            if options and "reasoning" in str(e).lower():  # option non gérée : on la retire
+                for k in options:
+                    extra.pop(k, None)
+                continue
             if "tool_use_failed" in str(e) and attempt < 2:
                 continue
             raise
@@ -286,6 +296,30 @@ def _excel_summary(data: bytes, rows: int = 8, cols: int = 12) -> str:
         ):
             out.append(" | ".join("" if v is None else str(v)[:30] for v in row))
     return "\n".join(out)
+
+
+def _excel_report(code: str, base: bytes, new: bytes) -> str:
+    """Message de fin : phrase de l'IA (# RESUME) + différences mesurées dans le fichier."""
+    import openpyxl
+
+    lines = []
+    m = re.search(r"#\s*RESUME\s*:\s*(.+)", code)
+    if m:
+        lines.append(f"**Ce qui a été fait :** {m.group(1).strip()}")
+    old = {w.title: w for w in openpyxl.load_workbook(io.BytesIO(base)).worksheets}
+    for ws in openpyxl.load_workbook(io.BytesIO(new)).worksheets:
+        after = len(_data_rows(ws))
+        before = len(_data_rows(old[ws.title])) if ws.title in old else 0
+        diff = after - before
+        if ws.title not in old:
+            lines.append(f"- Nouvelle feuille « {ws.title} » : {after} lignes")
+        elif diff > 0:
+            lines.append(f"- Feuille « {ws.title} » : **{diff} ligne(s) ajoutée(s)** ({before} → {after} lignes avec données)")
+        elif diff < 0:
+            lines.append(f"- Feuille « {ws.title} » : {-diff} ligne(s) supprimée(s) ({before} → {after})")
+        else:
+            lines.append(f"- Feuille « {ws.title} » : {after} lignes, contenu réorganisé ou mis en forme")
+    return "✅ **Ton fichier Excel est prêt.**\n\n" + "\n".join(lines) + "\n\nTélécharge-le avec le bouton ci-dessous."
 
 
 def _signature(data: bytes) -> list:
@@ -491,7 +525,8 @@ class Chat:
         elif file:
             messages[-1] = {"role": "user", "content": full_q}
 
-        tools = [TOOL_WEB]
+        # pas de recherche web pendant un travail sur Excel (les petits modèles s'y perdent)
+        tools = [] if (base and EXCEL_EDIT) else [TOOL_WEB]
         providers = available_providers()
         if image:
             providers = [p for p in providers if p.get("vision")]
@@ -513,13 +548,13 @@ class Chat:
                     api_key=os.environ[p["key"]],
                     base_url=p["base_url"],
                     timeout=(35 if last else 20) if SERVERLESS else (90 if last else 45),
-                    max_retries=1,
+                    max_retries=0 if not last else 1,  # pas d'attente cachée : on bascule
                 )
                 model = p["vision_model"] if image else p["model"]
                 msgs = list(messages)
                 stored = shown = ""
                 for _ in range(12):  # boucle : recherche web / script Excel
-                    r = _create(client, model, msgs, tools, p.get("vision_max_tokens" if image else "max_tokens"))
+                    r = _create(client, model, msgs, tools, p.get("vision_max_tokens" if image else "max_tokens"), p.get("options"))
                     m = r.choices[0].message
                     if m.tool_calls:
                         msgs.append(m)
@@ -542,26 +577,9 @@ class Chat:
                         code = script.group(1)
                         result = self._edit_excel(code, base)
                         if self.turn_files:
-                            # Fichier produit : explication via un appel court et séparé
-                            # (les modèles renvoient sinon un nouveau script au lieu d'expliquer)
-                            expl = client.chat.completions.create(
-                                model=model,
-                                messages=[
-                                    {
-                                        "role": "system",
-                                        "content": "Explique en français, en quelques lignes claires "
-                                        "(liste à puces), sans code, ce qui a été fait au fichier "
-                                        "Excel pour répondre à la demande. Termine en disant que le "
-                                        "fichier est prêt à être téléchargé.",
-                                    },
-                                    {
-                                        "role": "user",
-                                        "content": f"Demande : {question}\n\nScript exécuté :\n"
-                                        f"{code[:4000]}\n\n{result}",
-                                    },
-                                ],
-                            )
-                            stored = shown = _clean(expl.choices[0].message.content)
+                            # Fichier produit : réponse construite localement (pas d'appel IA
+                            # supplémentaire : plus rapide, et pas de nouveau script en réponse)
+                            stored = shown = _excel_report(code, base, db.get_file(self.conv_id, "current.xlsx"))
                             break
                         msgs.append({"role": "assistant", "content": text})
                         msgs.append(

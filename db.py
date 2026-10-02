@@ -165,6 +165,15 @@ def delete_conv(user_id: str, conv_id: str):
             c.execute(delete(files).where(files.c.conv_id == conv_id))
 
 
+def rename_conv(user_id: str, conv_id: str, title: str):
+    with engine.begin() as c:
+        c.execute(
+            update(conversations)
+            .where(and_(conversations.c.id == conv_id, conversations.c.user_id == user_id))
+            .values(title=title[:80])
+        )
+
+
 # ---------- fichiers ----------
 def put_file(conv_id: str, name: str, kind: str, data: bytes):
     with engine.begin() as c:
