@@ -1,0 +1,2 @@
+# Optionnel, en local seulement : Excel plus puissant (trop lourd pour Vercel)
+pandas>=2.0

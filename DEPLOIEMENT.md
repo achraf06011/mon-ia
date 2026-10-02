@@ -52,3 +52,19 @@ La base de données reste Neon (voir ci-dessus, étape 1).
    (identifiant = ton pseudo Hugging Face ; mot de passe = un **token** « Write » créé sur https://huggingface.co/settings/tokens)
 4. Le Space construit l'image (3-5 min). Ouvre l'adresse directe `https://TON_PSEUDO-mon-ia.hf.space` (pas la page huggingface.co/spaces/..., qui l'affiche dans un cadre où la connexion ne se conserve pas).
 5. Le Space se met en veille après 48 h sans visite et se réveille tout seul.
+
+---
+
+# Variante Vercel (gratuite, sans carte bancaire)
+
+Le projet est prêt pour Vercel : `api/index.py` (point d'entrée), `vercel.json` (réécriture des URL, durée max 60 s) et `.vercelignore`.
+La base de données est Neon (obligatoire : Vercel n'a pas de disque permanent).
+
+1. https://vercel.com → **Add New → Project** → importe le dépôt GitHub `mon-ia` (Framework : « Other »).
+2. **Environment Variables** : colle le contenu de `render.env` (bouton/zone d'import `.env`) : `DATABASE_URL`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `SIGNUP_CODE`, `DAILY_LIMIT`.
+3. **Deploy**. L'adresse `https://mon-ia-xxxx.vercel.app` apparaît.
+
+Limites propres à Vercel :
+- fichiers envoyés : ~3 Mo maximum ;
+- chaque réponse doit tenir en 60 s (l'IA bascule vite sur un autre fournisseur si l'un est lent) ;
+- pandas n'est pas installé : l'IA modifie les Excel avec openpyxl seul (même résultat, juste un peu moins flexible).

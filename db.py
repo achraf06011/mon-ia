@@ -7,6 +7,7 @@ import time
 import uuid
 from pathlib import Path
 
+from sqlalchemy.pool import NullPool
 from sqlalchemy import (
     Column, Float, Integer, LargeBinary, MetaData, PrimaryKeyConstraint, String, Table, Text,
     and_, create_engine, delete, insert, select, update,
@@ -31,6 +32,8 @@ _URL = _url()
 engine = create_engine(
     _URL,
     pool_pre_ping=True,
+    # serverless (Vercel) : pas de connexions gardées entre deux requêtes
+    **({"poolclass": NullPool} if os.getenv("VERCEL") else {}),
     # pas de requêtes préparées : compatible avec le pooler de Neon/Supabase
     connect_args={"prepare_threshold": None} if _URL.startswith("postgresql") else {},
 )

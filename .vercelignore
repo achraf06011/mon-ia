@@ -1,0 +1,15 @@
+.env
+render.env
+data/
+.git
+__pycache__/
+*.pyc
+icon.ico
+make_icon.py
+app.pyw
+arreter.bat
+start.bat
+Dockerfile
+.dockerignore
+render.yaml
+*.md

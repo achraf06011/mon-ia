@@ -91,6 +91,7 @@ MAX_HISTORY = 20  # messages envoyés à l'IA (tout est quand même sauvegardé)
 MAX_FILE_CHARS = int(os.getenv("MAX_FILE_CHARS", "20000"))  # texte PDF envoyé à l'IA
 # Mettre ENABLE_EXCEL_SCRIPTS=0 pour interdire la modification d'Excel (analyse seulement)
 EXCEL_EDIT = os.getenv("ENABLE_EXCEL_SCRIPTS", "1") != "0"
+SERVERLESS = bool(os.getenv("VERCEL"))
 
 
 def web_search(query: str) -> str:
@@ -122,16 +123,27 @@ TOOL_WEB = {
 SCRIPT_RE = re.compile(r"```excel_script[ \t]*\r?\n(.*?)```", re.DOTALL)
 DOC_RE = re.compile(r"```document_(docx|pdf)[ \t]*\r?\n(.*?)```", re.DOTALL)
 
+if sandbox.HAS_PANDAS:
+    _LIBS = (
+        "pandas (pd) et openpyxl sont déjà importés. Seuls pandas, numpy, openpyxl, datetime, "
+        "re, math, random et quelques modules standards sont autorisés"
+    )
+else:  # hébergement léger (Vercel) : pas de pandas
+    _LIBS = (
+        "openpyxl est déjà importé. pandas n'est PAS disponible : utilise uniquement openpyxl "
+        "(pour trier/dédoublonner : lis les lignes dans une liste Python, traite-les, puis "
+        "réécris-les dans la feuille). Seuls openpyxl, datetime, re, math, random et quelques "
+        "modules standards sont autorisés"
+    )
+
 EXCEL_PROMPT = (
     "Un classeur Excel est chargé (« {name} »). Structure actuelle :\n{summary}\n\n"
     "Pour le modifier ou l'organiser selon la demande, réponds UNIQUEMENT par un bloc de "
     "code complet de ce format exact (sans texte avant ni après) :\n"
-    "```excel_script\n# code Python (pandas/openpyxl)\n```\n"
+    "```excel_script\n# code Python\n```\n"
     "Les variables INPUT (chemin du fichier à lire) et OUTPUT (chemin où enregistrer le "
-    "résultat avec wb.save(OUTPUT) ou df.to_excel) sont déjà définies ; pandas (pd) et "
-    "openpyxl sont déjà importés. Seuls pandas, numpy, openpyxl, datetime, re, math, random "
-    "et quelques modules standards sont autorisés ; n'écris aucun autre chemin que INPUT et "
-    "OUTPUT. Utilise exactement les noms de feuilles et de colonnes "
+    "résultat avec wb.save(OUTPUT)) sont déjà définies ; " + _LIBS + " ; n'écris aucun autre "
+    "chemin que INPUT et OUTPUT. Utilise exactement les noms de feuilles et de colonnes "
     "de la structure ci-dessus. Garde toutes les données sauf si on te demande de les "
     "supprimer. Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
     "première ligne figée, filtres automatiques, largeur de colonnes ajustée, formats "
@@ -198,6 +210,37 @@ def _excel_summary(data: bytes, rows: int = 12, cols: int = 15) -> str:
     return "\n".join(out)
 
 
+def _csv_to_xlsx(data: bytes) -> bytes:
+    import csv
+
+    import openpyxl
+
+    try:
+        text = data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = data.decode("latin-1")
+    try:
+        dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
+    except csv.Error:
+        dialect = csv.excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    for row in csv.reader(io.StringIO(text), dialect):
+        cells = []
+        for v in row:  # nombres reconnus automatiquement
+            try:
+                cells.append(int(v))
+            except ValueError:
+                try:
+                    cells.append(float(v))
+                except ValueError:
+                    cells.append(v)
+        ws.append(cells)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def available_providers() -> list[dict]:
     return [p for p in PROVIDERS if os.getenv(p["key"])]
 
@@ -243,15 +286,7 @@ class Chat:
             return f"\n\n[Contenu du PDF « {name} »]\n{_pdf_text(data)}"
         if ext in (".xlsx", ".xlsm", ".csv"):
             if ext == ".csv":
-                import pandas as pd
-
-                try:
-                    df = pd.read_csv(io.BytesIO(data), sep=None, engine="python")
-                except UnicodeDecodeError:
-                    df = pd.read_csv(io.BytesIO(data), sep=None, engine="python", encoding="latin-1")
-                buf = io.BytesIO()
-                df.to_excel(buf, index=False)
-                data = buf.getvalue()
+                data = _csv_to_xlsx(data)
             _excel_summary(data)  # lève une erreur claire si le fichier est illisible
             db.put_file(self.conv_id, "current.xlsx", "excel", data)
             self.excel_name = name
@@ -331,10 +366,11 @@ class Chat:
                 # Délai court tant qu'il reste un fournisseur de secours : si celui-ci est
                 # lent ou saturé, on bascule vite sur le suivant.
                 last = idx == len(providers) - 1
+                # Vercel coupe toute requête à 60 s : délais plus courts pour pouvoir basculer
                 client = OpenAI(
                     api_key=os.environ[p["key"]],
                     base_url=p["base_url"],
-                    timeout=90 if last else 45,
+                    timeout=(35 if last else 20) if SERVERLESS else (90 if last else 45),
                     max_retries=1,
                 )
                 model = p["vision_model"] if image else p["model"]

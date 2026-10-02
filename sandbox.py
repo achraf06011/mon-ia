@@ -4,12 +4,16 @@ Protections : vérification du code avant exécution (imports autorisés, pas de
 dangereuses, pas de chemins/URL), processus séparé SANS les variables d'environnement
 (donc sans clés API), dossier temporaire jetable, limite de temps et de mémoire (Linux)."""
 import ast
+import importlib.util
 import os
 import re
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+# pandas est optionnel (lourd) : absent de l'hébergement léger. NO_PANDAS=1 pour le simuler.
+HAS_PANDAS = importlib.util.find_spec("pandas") is not None and not os.getenv("NO_PANDAS")
 
 ALLOWED_MODULES = {
     "pandas", "numpy", "openpyxl", "datetime", "random", "math", "re", "collections", "itertools",
@@ -76,11 +80,14 @@ def run(code: str, base: bytes, timeout: int = 60) -> tuple[str, bytes | None]:
         out = td / "output.xlsx"
         (td / "task.py").write_text(
             f"INPUT = {str(td / 'base.xlsx')!r}\nOUTPUT = {str(out)!r}\n"
-            "import pandas as pd\nimport openpyxl\n" + code,
+            + ("import pandas as pd\n" if HAS_PANDAS else "")
+            + "import openpyxl\n" + code,
             encoding="utf-8",
         )
         env = {k: os.environ[k] for k in ("SYSTEMROOT", "PATH", "LANG") if k in os.environ}
         env.update(TEMP=str(td), TMP=str(td), TMPDIR=str(td), PYTHONIOENCODING="utf-8")
+        # le processus enfant doit retrouver les bibliothèques installées (venv, Vercel...)
+        env["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
         try:
             r = subprocess.run(
                 [sys.executable, str(td / "task.py")],

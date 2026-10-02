@@ -23,7 +23,7 @@ HOST = "0.0.0.0" if ONLINE else "127.0.0.1"
 SIGNUP_CODE = os.getenv("SIGNUP_CODE", "").strip()  # si défini : requis pour créer un compte
 ALLOW_SIGNUP = os.getenv("ALLOW_SIGNUP", "1") != "0"
 DAILY_LIMIT = int(os.getenv("DAILY_LIMIT", "50"))  # messages / jour / utilisateur (0 = illimité)
-MAX_BODY = 12 * 1024 * 1024
+MAX_BODY = (4 if os.getenv("VERCEL") else 12) * 1024 * 1024  # Vercel : 4,5 Mo max
 ID_RE = re.compile(r"^[0-9a-f]{12}$")
 USER_RE = re.compile(r"^[a-z0-9_.-]{3,30}$")
 
@@ -236,22 +236,31 @@ class Handler(BaseHTTPRequestHandler):
         secure = "; Secure" if self.headers.get("X-Forwarded-Proto") == "https" else ""
         return {"Set-Cookie": f"session={token}; HttpOnly; SameSite=Lax; Path=/; Max-Age={max_age}{secure}"}
 
+    def _route(self):
+        """(chemin, paramètres). Sur Vercel, toutes les URL sont réécrites vers /api/index ;
+        le chemin d'origine arrive dans le paramètre __p (voir vercel.json)."""
+        url = urlparse(self.path)
+        qs = parse_qs(url.query)
+        path = qs.pop("__p", [url.path])[0]
+        if not path.startswith("/") or path.startswith("/api/index"):
+            path = "/"
+        return path, qs
+
     # ----- GET -----
     def do_GET(self):
-        url = urlparse(self.path)
-        if url.path == "/api/config":
+        path, qs = self._route()
+        if path == "/api/config":
             return self._json({"needs_code": bool(SIGNUP_CODE), "signup": ALLOW_SIGNUP})
         user = self._user()
-        if url.path == "/":
+        if path == "/":
             return self._send((PAGE if user else LOGIN_PAGE).encode(), "text/html")
         if not user:
             return self._json({"error": "Non connecté"}, 401)
-        qs = parse_qs(url.query)
-        if url.path == "/api/me":
+        if path == "/api/me":
             return self._json({"username": user.username})
-        if url.path == "/api/conversations":
+        if path == "/api/conversations":
             return self._json({"list": db.list_convs(user.id)})
-        if url.path == "/api/conversation":
+        if path == "/api/conversation":
             try:
                 cid = qs.get("id", [""])[0]
                 if not ID_RE.match(cid):
@@ -260,7 +269,7 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 return self._json({"error": "Conversation introuvable"}, 404)
             return self._json({"id": chat.conv_id, "messages": chat.messages(), "downloads": chat.outputs()})
-        if url.path == "/download":
+        if path == "/download":
             cid, name = qs.get("c", [""])[0], qs.get("f", [""])[0]
             if not ID_RE.match(cid) or not db.get_conv(user.id, cid):  # la conversation doit être la sienne
                 return self._send(b"Introuvable", "text/plain", 404)
@@ -276,12 +285,13 @@ class Handler(BaseHTTPRequestHandler):
 
     # ----- POST -----
     def do_POST(self):
+        self.path, _ = self._route()
         origin = self.headers.get("Origin")
         if origin and urlparse(origin).netloc != self.headers.get("Host"):
             return self._json({"error": "Origine refusée"}, 403)  # protection CSRF
         length = int(self.headers.get("Content-Length", 0))
         if length > MAX_BODY:
-            return self._json({"error": "Fichier trop volumineux (12 Mo max)."}, 413)
+            return self._json({"error": f"Fichier trop volumineux ({MAX_BODY // (1024 * 1024) * 3 // 4} Mo max)."}, 413)
         try:
             data = json.loads(self.rfile.read(length) or b"{}")
         except json.JSONDecodeError:
