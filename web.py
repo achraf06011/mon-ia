@@ -67,19 +67,19 @@ button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#ff
 .dl{display:inline-block;margin:10px 8px 0 0;padding:8px 14px;border-radius:8px;background:#1f8a4c;color:#fff;text-decoration:none}
 
 .logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff;padding:4px 6px 8px}
-.mark{width:40px;height:40px;flex:none;display:block;filter:drop-shadow(0 0 6px rgba(108,99,255,.55));transition:filter .4s}
+.mark{width:46px;height:46px;flex:none;display:block;filter:drop-shadow(0 0 5px rgba(120,108,255,.9)) drop-shadow(0 0 12px rgba(108,99,255,.55));transition:filter .4s}
 .mark svg{display:block}
-.logo:hover .mark{filter:drop-shadow(0 0 11px rgba(108,99,255,.95))}
-.word{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:300;letter-spacing:.08em}
+.logo:hover .mark{filter:drop-shadow(0 0 7px rgba(140,128,255,1)) drop-shadow(0 0 18px rgba(108,99,255,.8))}
+.word{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:300;letter-spacing:.06em}
 .word b{color:#6c63ff;font-weight:300}
 @media(max-width:700px){aside{display:none}}
 </style>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23050508'/%3E%3Cpolygon points='20,3 37,20 20,37 3,20' fill='%236c63ff' fill-opacity='.18' stroke='%236c63ff' stroke-width='2.2' stroke-linejoin='round'/%3E%3Cpath d='M12.5 27 L20 11.5 L27.5 27 M15.7 22 H24.3' fill='none' stroke='%23e4e0ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23050508'/%3E%3Cpolygon points='50,6 94,50 50,94 6,50' fill='none' stroke='%239a92ff' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M39 27 L28 77 M60.4 27 L71 77 M39 27 L49.7 43 L60.4 27 M32.6 59 H46.4 M53.6 59 H67.4' fill='none' stroke='%239a92ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 </head><body>
-<aside><div class="logo"><span class="mark"><svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><polygon points="20,2 38,20 20,38 2,20" fill="rgba(108,99,255,.14)" stroke="#6c63ff" stroke-width="2" stroke-linejoin="round"/><path d="M12.5 27.5 L20 11 L27.5 27.5 M15.6 22.2 H24.4" fill="none" stroke="#e4e0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><button id="new">+ Nouvelle conversation</button><div id="list"></div>
+<aside><div class="logo"><span class="mark"><svg viewBox="0 0 100 100" width="46" height="46" aria-hidden="true"><polygon points="50,4 96,50 50,96 4,50" fill="none" stroke="#9a92ff" stroke-width="3.2" stroke-linejoin="round"/><path d="M39 26.7 L27.9 77.6 M60.4 26.7 L70.8 77.6 M39 26.7 L49.7 43 L60.4 26.7 M32.6 59 H46.4 M53.6 59 H67.4" fill="none" stroke="#9a92ff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><button id="new">+ Nouvelle conversation</button><div id="list"></div>
 <div class="me"><span id="uname"></span><button id="out">Déconnexion</button></div></aside>
 <main>
 <div id="log"></div>
@@ -145,9 +145,9 @@ body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0;min-he
 .card{width:340px;max-width:92vw;background:#1a1a1a;border:1px solid #2c2c2c;border-radius:14px;padding:28px}
 .card{--logo-bg:#1a1a1a}
 .logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:#fff;padding:0 0 14px}
-.mark{width:40px;height:40px;flex:none;display:block;filter:drop-shadow(0 0 6px rgba(108,99,255,.55));transition:filter .4s}
+.mark{width:46px;height:46px;flex:none;display:block;filter:drop-shadow(0 0 5px rgba(120,108,255,.9)) drop-shadow(0 0 12px rgba(108,99,255,.55));transition:filter .4s}
 .mark svg{display:block}
-.logo:hover .mark{filter:drop-shadow(0 0 11px rgba(108,99,255,.95))}
+.logo:hover .mark{filter:drop-shadow(0 0 7px rgba(140,128,255,1)) drop-shadow(0 0 18px rgba(108,99,255,.8))}
 .word{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:300;letter-spacing:.08em}
 .word b{color:#6c63ff;font-weight:300}
 h1{margin:0 0 4px;font-size:22px}.sub{color:#999;font-size:14px;margin-bottom:20px}
@@ -159,11 +159,11 @@ input{width:100%;box-sizing:border-box;padding:11px;border-radius:8px;border:1px
 .go{width:100%;margin-top:18px;padding:12px;border:0;border-radius:8px;background:#2a4d8f;color:#fff;font-size:16px;cursor:pointer}
 .err{color:#ff7b7b;font-size:14px;margin-top:12px;min-height:18px}
 </style>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='9' fill='%23050508'/%3E%3Cpolygon points='20,3 37,20 20,37 3,20' fill='%236c63ff' fill-opacity='.18' stroke='%236c63ff' stroke-width='2.2' stroke-linejoin='round'/%3E%3Cpath d='M12.5 27 L20 11.5 L27.5 27 M15.7 22 H24.3' fill='none' stroke='%23e4e0ff' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23050508'/%3E%3Cpolygon points='50,6 94,50 50,94 6,50' fill='none' stroke='%239a92ff' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M39 27 L28 77 M60.4 27 L71 77 M39 27 L49.7 43 L60.4 27 M32.6 59 H46.4 M53.6 59 H67.4' fill='none' stroke='%239a92ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&display=swap" rel="stylesheet">
 </head><body>
 <form class="card" id="f">
-<div class="logo"><span class="mark"><svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true"><polygon points="20,2 38,20 20,38 2,20" fill="rgba(108,99,255,.14)" stroke="#6c63ff" stroke-width="2" stroke-linejoin="round"/><path d="M12.5 27.5 L20 11 L27.5 27.5 M15.6 22.2 H24.4" fill="none" stroke="#e4e0ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><h1>Mon IA</h1><div class="sub">Ton assistant personnel, avec ton propre historique.</div>
+<div class="logo"><span class="mark"><svg viewBox="0 0 100 100" width="46" height="46" aria-hidden="true"><polygon points="50,4 96,50 50,96 4,50" fill="none" stroke="#9a92ff" stroke-width="3.2" stroke-linejoin="round"/><path d="M39 26.7 L27.9 77.6 M60.4 26.7 L70.8 77.6 M39 26.7 L49.7 43 L60.4 26.7 M32.6 59 H46.4 M53.6 59 H67.4" fill="none" stroke="#9a92ff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><h1>Mon IA</h1><div class="sub">Ton assistant personnel, avec ton propre historique.</div>
 <div class="tabs"><button type="button" id="t1" class="on">Connexion</button><button type="button" id="t2">Créer un compte</button></div>
 <label for="u">Nom d'utilisateur</label><input id="u" autocomplete="username" required maxlength="30" autofocus>
 <label for="p">Mot de passe</label><input id="p" type="password" autocomplete="current-password" required>
