@@ -58,7 +58,7 @@ main{flex:1;display:flex;flex-direction:column;min-width:0;height:100vh;height:1
 .m{padding:10px 14px;margin:8px 0;border-radius:10px;white-space:pre-wrap;line-height:1.5}
 .u{background:#2a4d8f;margin-left:20%}.a{background:#222;margin-right:10%}
 form{display:flex;gap:8px;padding:12px;max-width:800px;width:100%;margin:0 auto;box-sizing:border-box}
-input{flex:1;padding:12px;border-radius:8px;border:1px solid #444;background:#1a1a1a;color:#eee;font-size:16px}
+input{flex:1;min-width:0;padding:12px;border-radius:8px;border:1px solid #444;background:#1a1a1a;color:#eee;font-size:16px}
 button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#fff;cursor:pointer}
 .a{white-space:normal;line-height:1.7;font-size:15.5px;overflow-wrap:anywhere}
 .a>*:first-child{margin-top:0}.a>*:last-child{margin-bottom:0}
@@ -83,6 +83,20 @@ button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#ff
 .logo:hover .mark{filter:drop-shadow(0 0 7px rgba(140,128,255,1)) drop-shadow(0 0 18px rgba(108,99,255,.8))}
 .word{font-family:'Cormorant Garamond',Georgia,serif;font-size:30px;font-weight:300;letter-spacing:.06em}
 .word b{color:#6c63ff;font-weight:300}
+#prev{display:none;flex-wrap:wrap;gap:8px;max-width:800px;width:100%;margin:0 auto;padding:0 12px 6px;box-sizing:border-box}
+.chip{display:flex;align-items:center;gap:8px;background:#1c1c1c;border:1px solid #333;border-radius:10px;padding:4px 8px;font-size:13px;color:#ccc;max-width:240px}
+.chip img{height:40px;border-radius:6px}.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip b{cursor:pointer;color:#999;padding:0 4px;font-weight:400}.chip b:hover{color:#fff}
+#mic.on{background:#c0392b !important;animation:pulse 1.2s infinite}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.box{background:#161616;border:1px solid #2c2c2c;border-radius:14px;padding:22px;width:500px;max-width:100%;max-height:92vh;overflow:auto}
+.box h3{margin:0 0 4px;font-size:19px}.box .hint{color:#999;font-size:13px;margin:0 0 12px;line-height:1.5}
+.box textarea{width:100%;box-sizing:border-box;min-height:150px;padding:11px;border-radius:8px;border:1px solid #444;background:#0f0f0f;color:#eee;font:15px/1.5 system-ui,sans-serif;resize:vertical}
+.box .row{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:14px;color:#ccc}.box .row input{flex:none;width:auto}
+.box .btns{display:flex;gap:8px;align-items:center}.box .ghost{background:#333}
+#mstat{color:#6fcf97;font-size:13px}.gear{background:#333;padding:6px 9px;line-height:0}
+.meb{display:flex;gap:6px;align-items:center}
 @media(max-width:700px){
 aside{position:fixed;z-index:30;top:0;bottom:0;left:0;width:82vw;max-width:310px;transform:translateX(-100%);transition:transform .25s}
 body.menu aside{transform:none;box-shadow:0 0 40px rgba(0,0,0,.7)}
@@ -91,6 +105,7 @@ body.menu .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55)
 #top button{background:#222;padding:6px 12px;font-size:20px;line-height:1}
 #top .logo{padding:0}
 .u{margin-left:8%}.a{margin-right:2%}#log{padding:12px}
+form{padding:8px;gap:6px}form button{padding:11px 10px}#q{padding:11px 10px}
 }
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23050508'/%3E%3Cpolygon points='50,6 94,50 50,94 6,50' fill='none' stroke='%239a92ff' stroke-width='5' stroke-linejoin='round'/%3E%3Cpath d='M39 27 L28 77 M60.4 27 L71 77 M39 27 L49.7 43 L60.4 27 M32.6 59 H46.4 M53.6 59 H67.4' fill='none' stroke='%239a92ff' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
@@ -100,32 +115,59 @@ body.menu .scrim{display:block;position:fixed;inset:0;background:rgba(0,0,0,.55)
 </head><body>
 <div class="scrim" id="scrim"></div>
 <aside><div class="logo"><span class="mark"><svg viewBox="0 0 100 100" width="46" height="46" aria-hidden="true"><polygon points="50,4 96,50 50,96 4,50" fill="none" stroke="#9a92ff" stroke-width="3.2" stroke-linejoin="round"/><path d="M39 26.7 L27.9 77.6 M60.4 26.7 L70.8 77.6 M39 26.7 L49.7 43 L60.4 26.7 M32.6 59 H46.4 M53.6 59 H67.4" fill="none" stroke="#9a92ff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div><button id="new">+ Nouvelle conversation</button><div id="list"></div>
-<div class="me"><span id="uname"></span><button id="out">Déconnexion</button></div></aside>
+<div class="me"><span id="uname"></span><span class="meb"><button id="set" class="gear" title="Paramètres" aria-label="Paramètres"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button><button id="out">Déconnexion</button></span></div></aside>
 <main>
 <div id="top"><button id="menu" aria-label="Menu">&#9776;</button><div class="logo"><span class="mark"><svg viewBox="0 0 100 100" width="46" height="46" aria-hidden="true"><polygon points="50,4 96,50 50,96 4,50" fill="none" stroke="#9a92ff" stroke-width="3.2" stroke-linejoin="round"/><path d="M39 26.7 L27.9 77.6 M60.4 26.7 L70.8 77.6 M39 26.7 L49.7 43 L60.4 26.7 M32.6 59 H46.4 M53.6 59 H67.4" fill="none" stroke="#9a92ff" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="word">AA<b>.</b></span></div></div>
 <div id="log"></div>
-<div id="prev" style="display:none;max-width:800px;width:100%;margin:0 auto;padding:0 12px;box-sizing:border-box">
-<img id="pimg" style="height:70px;border-radius:8px;vertical-align:middle"><span id="pname"></span> <button type="button" id="px" style="background:#444;padding:4px 10px">&times;</button></div>
+<div id="prev"></div>
 <form id="f"><button type="button" id="att" title="Joindre un fichier (image, PDF, Excel, CSV...)" style="background:#444">&#128206;</button>
 <button type="button" id="cam" class="cam" title="Prendre une photo" style="background:#444"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
 <input type="file" id="camfile" accept="image/*" capture="environment" hidden>
-<input type="file" id="file" accept="image/*,.pdf,.xlsx,.xlsm,.csv,.txt,.md,.json,.py" hidden>
-<input id="q" placeholder="Pose ta question... (joins une image, un PDF ou un Excel)" autofocus autocomplete="off">
+<input type="file" id="file" accept="image/*,.pdf,.xlsx,.xlsm,.csv,.txt,.md,.json,.py" multiple hidden>
+<button type="button" id="mic" title="Dicter (micro)" aria-label="Dicter" style="background:#444;display:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
+<input id="q" placeholder="Pose ta question…" autofocus autocomplete="off">
 <button>Envoyer</button></form>
 </main>
+<div class="modal" id="modal"><div class="box">
+<h3>Paramètres</h3>
+<p class="hint"><b>Mémoire personnelle</b> : écris ici ce que l'IA doit toujours savoir (ton prénom, ton métier, ta façon préférée de recevoir les réponses). Elle s'en servira dans toutes tes conversations, sans que tu aies à le répéter.</p>
+<textarea id="mem" maxlength="1500" placeholder="Exemple : Je m'appelle Achraf, je suis étudiant en développement web. Réponds en français, de façon courte et claire, avec des exemples de code quand c'est utile."></textarea>
+<div class="row" id="arow"><input type="checkbox" id="autoread"><label for="autoread">Lire automatiquement les réponses à voix haute</label></div>
+<div class="btns"><button id="msave">Enregistrer</button><button id="mclose" class="ghost">Fermer</button><span id="mstat"></span></div>
+</div></div>
 <script>
 const $=id=>document.getElementById(id);
-const log=$('log'),q=$('q'),prev=$('prev'),pimg=$('pimg'),pname=$('pname'),file=$('file');
-let image=null,att=null,busy=false,convId=null,list=[];
+const log=$('log'),q=$('q'),prev=$('prev'),file=$('file');
+let atts=[],busy=false,convId=null,list=[],maxBody=12*1024*1024,curBtn=null;
 function render(el,t){if(window.marked&&window.DOMPurify){el.innerHTML=DOMPurify.sanitize(marked.parse(t,{breaks:true}))}else{el.style.whiteSpace='pre-wrap';el.textContent=t}}
-function add(c,t,img,label){const d=document.createElement('div');d.className='m '+c;if(img){const i=document.createElement('img');i.src=img;i.style='max-height:160px;border-radius:8px;display:block;margin-bottom:6px';d.appendChild(i)}if(label)d.appendChild(document.createTextNode('\u{1F4CE} '+label+'\n'));d.appendChild(document.createTextNode(t));log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
+function add(c,t,imgs,labels){const d=document.createElement('div');d.className='m '+c;
+(imgs||[]).forEach(src=>{const i=document.createElement('img');i.src=src;i.style='max-height:160px;border-radius:8px;display:block;margin-bottom:6px';d.appendChild(i)});
+if(labels&&labels.length)d.appendChild(document.createTextNode('\u{1F4CE} '+labels.join(', ')+'\n'));
+d.appendChild(document.createTextNode(t));log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
 function closeMenu(){document.body.classList.remove('menu')}
 async function copyText(t,btn){try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}btn.textContent='Copié \u2713';setTimeout(()=>btn.textContent='Copier',1500)}
-function addTools(el,text){const d=document.createElement('div');d.className='tools';const b=document.createElement('button');b.type='button';b.textContent='Copier';b.onclick=()=>copyText(text,b);d.appendChild(b);el.appendChild(d)}
+/* ---- lecture à voix haute (synthèse vocale du navigateur : voix françaises gratuites, très naturelles sous Edge) ---- */
+const canSpeak='speechSynthesis' in window;
+function plain(md){const d=document.createElement('div');render(d,md);return d.textContent||''}
+function pickVoice(){const v=speechSynthesis.getVoices().filter(x=>/^fr/i.test(x.lang));return v.find(x=>/natural|online/i.test(x.name))||v.find(x=>/google|microsoft|thomas|amelie|audrey/i.test(x.name))||v[0]}
+function setBtn(b,on){if(!b)return;if(on){b.dataset.on='1';b.textContent='Arrêter'}else{delete b.dataset.on;b.textContent='Écouter'}}
+function stopSpeak(){if(!canSpeak)return;speechSynthesis.cancel();setBtn(curBtn,false);curBtn=null}
+function speak(md,btn){if(!canSpeak)return;stopSpeak();const text=plain(md).replace(/\s+/g,' ').trim();if(!text)return;
+const sentences=text.match(/[^.!?\n]+[.!?]*\s*/g)||[text];const parts=[];let cur='';
+sentences.forEach(c=>{if((cur+c).length>200&&cur){parts.push(cur);cur=c}else cur+=c});if(cur)parts.push(cur);
+curBtn=btn||null;setBtn(curBtn,true);const voice=pickVoice();
+parts.forEach((p,i)=>{const u=new SpeechSynthesisUtterance(p.trim());u.lang='fr-FR';if(voice)u.voice=voice;
+if(i===parts.length-1){u.onend=u.onerror=()=>{setBtn(btn,false);if(curBtn===btn)curBtn=null}}
+speechSynthesis.speak(u)})}
+function autoRead(){try{return localStorage.getItem('autoread')==='1'}catch(e){return false}}
+function addTools(el,text){const d=document.createElement('div');d.className='tools';
+const b=document.createElement('button');b.type='button';b.textContent='Copier';b.onclick=()=>copyText(text,b);d.appendChild(b);
+if(canSpeak){const s=document.createElement('button');s.type='button';s.textContent='Écouter';s.onclick=()=>{if(s.dataset.on)stopSpeak();else speak(text,s)};d.appendChild(s)}
+el.appendChild(d)}
 function typeInto(el,text,done){const parts=text.split(/(\s+)/);const per=Math.max(1,Math.ceil(parts.length/90));let i=0;
 (function tick(){i=Math.min(parts.length,i+per);render(el,parts.slice(0,i).join(''));log.scrollTop=log.scrollHeight;if(i<parts.length)setTimeout(tick,22);else if(done)done()})()}
-function statusFor(t,a,img){if(a){if(/\.(xlsx|xlsm|csv)$/i.test(a.name))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(a.name))return 'Lecture du PDF\u2026';return 'Lecture du fichier\u2026'}
-if(img)return 'Analyse de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
+function statusFor(t,fl,imgs){if(fl.length){if(fl.length>1)return 'Lecture des '+fl.length+' fichiers\u2026';const n=fl[0].name;if(/\.(xlsx|xlsm|csv)$/i.test(n))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(n))return 'Lecture du PDF\u2026';return 'Lecture du fichier\u2026'}
+if(imgs.length)return imgs.length>1?'Analyse des images\u2026':'Analyse de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
 function links(el,names){names.forEach(n=>{const l=document.createElement('a');l.className='dl';l.href='/download?c='+convId+'&f='+encodeURIComponent(n);l.textContent='⬇ '+n;l.download=n;el.appendChild(l)})}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',body:JSON.stringify(body)});if(r.status===401){location.reload();throw new Error('Session expirée')}return r.json()}
 function renderList(){const box=$('list');box.innerHTML='';
@@ -140,35 +182,65 @@ const act=document.createElement('span');act.className='act';act.appendChild(e);
 d.onclick=()=>{if(c.id!==convId&&!busy){closeMenu();openConv(c.id)}};box.appendChild(d)})}
 async function refresh(){list=(await api('/api/conversations')).list;renderList()}
 function remember(){try{convId?localStorage.setItem('last',convId):localStorage.removeItem('last')}catch(e){}}
-function newChat(){closeMenu();convId=null;log.innerHTML='';clearAtt();renderList();remember();q.focus()}
+function newChat(){closeMenu();stopSpeak();convId=null;log.innerHTML='';clearAtt();renderList();remember();q.focus()}
 async function openConv(id){const s=await api('/api/conversation?id='+id);if(s.error){newChat();return}
-convId=s.id;log.innerHTML='';clearAtt();
+stopSpeak();convId=s.id;log.innerHTML='';clearAtt();
 s.messages.forEach(m=>{const d=add(m.role==='user'?'u':'a',m.text);if(m.role!=='user'){render(d,m.text);addTools(d,m.text)}});
 if(s.downloads.length){const d=add('a','\u{1F4C1} Fichiers de cette conversation :\n');links(d,s.downloads)}
 renderList();remember();log.scrollTop=log.scrollHeight;q.focus()}
-function setImage(f){const img=new Image();img.onload=()=>{const s=Math.min(1,1280/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);image=c.toDataURL('image/jpeg',0.85);pimg.src=image;pimg.style.display='';pname.textContent='';prev.style.display='block'};img.src=URL.createObjectURL(f)}
-function setFile(f){const fr=new FileReader();fr.onload=()=>{att={name:f.name,data:fr.result.split(',')[1]};pimg.style.display='none';pname.textContent='\u{1F4CE} '+f.name;prev.style.display='block'};fr.readAsDataURL(f)}
-function setAny(f){if(!f)return;clearAtt();f.type.startsWith('image/')?setImage(f):setFile(f)}
-function clearAtt(){image=null;att=null;prev.style.display='none';file.value='';$('camfile').value=''}
+/* ---- pièces jointes multiples ---- */
+function renderPrev(){prev.innerHTML='';atts.forEach((a,i)=>{const c=document.createElement('div');c.className='chip';
+if(a.type==='image'){const im=document.createElement('img');im.src=a.dataUrl;c.appendChild(im)}
+const s=document.createElement('span');s.textContent=(a.type==='image'?'':'\u{1F4CE} ')+a.name;c.appendChild(s);
+const x=document.createElement('b');x.textContent='\u00d7';x.title='Retirer';x.onclick=()=>{atts.splice(i,1);renderPrev()};c.appendChild(x);prev.appendChild(c)});
+prev.style.display=atts.length?'flex':'none'}
+const sizeOf=a=>a.type==='image'?a.dataUrl.length:a.data.length;
+function pushAtt(a){if(atts.length>=6){alert('6 pièces jointes maximum par message.');return}
+if((atts.reduce((n,x)=>n+sizeOf(x),0)+sizeOf(a))*1.05>maxBody-20000){alert('Fichiers trop volumineux : environ '+Math.floor(maxBody/1048576*0.74)+' Mo maximum au total.');return}
+atts.push(a);renderPrev()}
+function addImage(f){const img=new Image();img.onerror=()=>alert('Format d\u2019image non pris en charge : '+(f.name||'photo'));
+img.onload=()=>{const s=Math.min(1,1280/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*s;c.height=img.height*s;c.getContext('2d').drawImage(img,0,0,c.width,c.height);pushAtt({type:'image',name:f.name||'photo.jpg',dataUrl:c.toDataURL('image/jpeg',0.85)})};img.src=URL.createObjectURL(f)}
+function addFile(f){const fr=new FileReader();fr.onload=()=>pushAtt({type:'file',name:f.name,data:fr.result.split(',')[1]});fr.readAsDataURL(f)}
+function addAny(fs){[...fs].forEach(f=>f.type.startsWith('image/')?addImage(f):addFile(f))}
+function clearAtt(){atts=[];renderPrev();file.value='';$('camfile').value=''}
 $('att').onclick=()=>file.click();
-file.onchange=()=>setAny(file.files[0]);
-$('cam').onclick=()=>$('camfile').click();$('camfile').onchange=()=>setAny($('camfile').files[0]);
-$('px').onclick=clearAtt;
+file.onchange=()=>{addAny(file.files);file.value=''};
+$('cam').onclick=()=>$('camfile').click();$('camfile').onchange=()=>{addAny($('camfile').files);$('camfile').value=''};
 $('new').onclick=()=>{if(!busy)newChat()};
 $('menu').onclick=()=>document.body.classList.toggle('menu');$('scrim').onclick=closeMenu;
 $('out').onclick=async()=>{await fetch('/api/logout',{method:'POST',body:'{}'});try{localStorage.removeItem('last')}catch(e){}location.reload()};
-document.addEventListener('paste',e=>{for(const it of e.clipboardData.items)if(it.type.startsWith('image/')){setAny(it.getAsFile());break}});
-$('f').onsubmit=async e=>{e.preventDefault();if(busy)return;const t=q.value.trim();if(!t&&!image&&!att)return;q.value='';
-const img=image,a=att;clearAtt();add('u',t,img,a&&a.name);const w=add('a','');w.className='m a status';w.textContent=statusFor(t,a,img);busy=true;
-try{const r=await api('/ask',{conv:convId,q:t,image:img,file:a});
+document.addEventListener('paste',e=>{const imgs=[...e.clipboardData.items].filter(it=>it.type.startsWith('image/')).map(it=>it.getAsFile());if(imgs.length)addAny(imgs)});
+/* ---- dictée vocale (reconnaissance vocale du navigateur : Edge, Chrome, Safari) ---- */
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
+if(SR){$('mic').style.display=''}
+$('mic').onclick=()=>{if(rec){rec.stop();return}stopSpeak();rec=new SR();rec.lang='fr-FR';rec.interimResults=true;rec.continuous=true;
+const base=q.value?q.value.trim()+' ':'';
+rec.onresult=e=>{let tx='';for(let i=0;i<e.results.length;i++)tx+=e.results[i][0].transcript;q.value=base+tx};
+rec.onend=()=>{rec=null;$('mic').classList.remove('on');q.focus()};
+rec.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed')alert('Autorise l\u2019accès au micro dans ton navigateur pour dicter.')};
+try{rec.start();$('mic').classList.add('on')}catch(e){rec=null}};
+/* ---- paramètres + mémoire personnelle ---- */
+if(!canSpeak)$('arow').style.display='none';
+$('set').onclick=async()=>{closeMenu();$('modal').classList.add('open');$('mstat').textContent='';$('autoread').checked=autoRead();$('mem').value='';const m=await api('/api/memory');$('mem').value=m.memory||''};
+const closeModal=()=>$('modal').classList.remove('open');
+$('mclose').onclick=closeModal;$('modal').onclick=e=>{if(e.target===$('modal'))closeModal()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+$('msave').onclick=async()=>{await api('/api/memory',{memory:$('mem').value});try{localStorage.setItem('autoread',$('autoread').checked?'1':'0')}catch(e){}$('mstat').textContent='Enregistré \u2713';setTimeout(closeModal,700)};
+/* ---- envoi ---- */
+$('f').onsubmit=async e=>{e.preventDefault();if(busy)return;const t=q.value.trim();if(!t&&!atts.length)return;q.value='';stopSpeak();if(rec)rec.stop();
+const imgs=atts.filter(a=>a.type==='image'),fl=atts.filter(a=>a.type==='file');clearAtt();
+add('u',t,imgs.map(i=>i.dataUrl),fl.map(f=>f.name));const w=add('a','');w.className='m a status';w.textContent=statusFor(t,fl,imgs);busy=true;
+try{const r=await api('/ask',{conv:convId,q:t,images:imgs.map(i=>i.dataUrl),files:fl.map(f=>({name:f.name,data:f.data}))});
 w.className='m a';w.textContent='';
 if(r.id){convId=r.id;remember()}
 if(r.list){list=r.list;renderList()}
 if(r.error){render(w,'Erreur : '+r.error)}
-else await new Promise(res=>typeInto(w,r.answer,()=>{if(r.downloads&&r.downloads.length)links(w,r.downloads);addTools(w,r.answer);res()}))}
+else{if(autoRead())speak(r.answer);await new Promise(res=>typeInto(w,r.answer,()=>{if(r.downloads&&r.downloads.length)links(w,r.downloads);addTools(w,r.answer);res()}))}}
 catch(err){w.className='m a';render(w,'Erreur : '+err)}
 busy=false;log.scrollTop=log.scrollHeight};
-(async()=>{const me=await api('/api/me');$('uname').textContent=me.username;await refresh();
+(async()=>{try{const cfg=await (await fetch('/api/config')).json();maxBody=cfg.max_body||maxBody}catch(e){}
+if(canSpeak)speechSynthesis.getVoices();
+const me=await api('/api/me');$('uname').textContent=me.username;await refresh();
 let last=null;try{last=localStorage.getItem('last')}catch(e){}
 if(last&&list.some(c=>c.id===last))openConv(last);else q.focus()})();
 </script></body></html>"""
@@ -306,7 +378,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path, qs = self._route()
         if path == "/api/config":
-            return self._json({"needs_code": bool(SIGNUP_CODES), "signup": ALLOW_SIGNUP})
+            return self._json({"needs_code": bool(SIGNUP_CODES), "signup": ALLOW_SIGNUP, "max_body": MAX_BODY})
         user = self._user()
         if path == "/":
             return self._send((PAGE if user else LOGIN_PAGE).encode(), "text/html")
@@ -314,6 +386,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "Non connecté"}, 401)
         if path == "/api/me":
             return self._json({"username": user.username})
+        if path == "/api/memory":
+            return self._json({"memory": db.get_memory(user.id)})
         if path == "/api/conversations":
             return self._json({"list": db.list_convs(user.id)})
         if path == "/api/conversation":
@@ -367,6 +441,9 @@ class Handler(BaseHTTPRequestHandler):
             if ID_RE.match(cid):
                 db.delete_conv(user.id, cid)
             return self._json({})
+        if self.path == "/api/memory":
+            db.set_memory(user.id, str(data.get("memory", "")).strip()[:1500])
+            return self._json({"ok": True})
         if self.path == "/api/rename":
             cid, title = data.get("id", ""), str(data.get("title", "")).strip()[:80]
             if ID_RE.match(cid) and title:
@@ -412,9 +489,12 @@ class Handler(BaseHTTPRequestHandler):
             if cid and not ID_RE.match(cid):
                 raise ValueError("Conversation introuvable")
             chat = Chat(user.id, cid)
-            f = data.get("file")
-            file = (f["name"], base64.b64decode(f["data"])) if f else None
-            answer, provider = chat.ask(str(data.get("q", "")), data.get("image"), file)
+            images = data.get("images") or ([data["image"]] if data.get("image") else [])
+            raw_files = data.get("files") or ([data["file"]] if data.get("file") else [])
+            if len(images) + len(raw_files) > 6:
+                raise ValueError("6 pièces jointes maximum par message.")
+            files = [(f["name"], base64.b64decode(f["data"])) for f in raw_files]
+            answer, provider = chat.ask(str(data.get("q", "")), images, files)
             return {
                 "answer": answer,
                 "provider": provider,

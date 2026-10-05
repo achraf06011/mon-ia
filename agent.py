@@ -101,7 +101,7 @@ PROVIDERS = [
 ]
 
 MAX_HISTORY = 12  # messages envoyés à l'IA (tout est quand même sauvegardé)
-MAX_FILE_CHARS = int(os.getenv("MAX_FILE_CHARS", "20000"))  # texte PDF envoyé à l'IA
+MAX_FILE_CHARS = int(os.getenv("MAX_FILE_CHARS", "16000"))  # texte total des fichiers envoyé à l'IA (partagé)
 # Mettre ENABLE_EXCEL_SCRIPTS=0 pour interdire la modification d'Excel (analyse seulement)
 EXCEL_EDIT = os.getenv("ENABLE_EXCEL_SCRIPTS", "1") != "0"
 SERVERLESS = bool(os.getenv("VERCEL"))
@@ -162,7 +162,14 @@ EXCEL_PROMPT = (
     "en forme) ; écris à partir de « dernière ligne contenant des données » + 1, continue la "
     "numérotation/les codes existants avec des valeurs réalistes cohérentes avec les colonnes, copie "
     "le style de la ligne précédente (bordures, formats), et si un tableau Excel existe étends sa plage "
-    "(ws.tables['nom'].ref = 'A1:G33'). Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
+    "(ws.tables['nom'].ref = 'A1:G33'). GRAPHIQUES : si on demande un graphique, ou si tu organises un "
+    "fichier dont les données s'y prêtent (une colonne de catégories/dates + au moins une colonne de "
+    "nombres), ajoute UN graphique pertinent avec openpyxl.chart (BarChart, LineChart ou PieChart) : "
+    "Reference pour les valeurs (titles_from_data=True) et les catégories, chart.title, titres d'axes, "
+    "chart.x_axis.delete = False et chart.y_axis.delete = False (sinon les axes disparaissent), "
+    "chart.width = 18, chart.height = 9, placé à droite des données (ws.add_chart(chart, 'J2')). "
+    "openpyxl ne conserve PAS les graphiques/images déjà présents dans le fichier. "
+    "Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
     "première ligne figée, filtres automatiques, largeur de colonnes ajustée, formats "
     "cohérents (dates, nombres). Commence ton script par UNE ligne de commentaire de la forme "
     "« # RESUME: ce que tu fais, en une phrase en français ». Je t'enverrai le résultat de "
@@ -257,7 +264,7 @@ def _clean(text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", text or "", flags=re.DOTALL).strip()
 
 
-def _pdf_text(data: bytes) -> str:
+def _pdf_text(data: bytes, limit: int = MAX_FILE_CHARS) -> str:
     from pypdf import PdfReader
 
     reader = PdfReader(io.BytesIO(data))
@@ -265,8 +272,8 @@ def _pdf_text(data: bytes) -> str:
     text = "\n".join(pages).strip()
     if len(text.replace("--- Page", "")) < 50:
         return "(Ce PDF ne contient pas de texte lisible : probablement un scan/image.)"
-    if len(text) > MAX_FILE_CHARS:
-        text = text[:MAX_FILE_CHARS] + f"\n[... tronqué, {len(reader.pages)} pages au total]"
+    if len(text) > limit:
+        text = text[:limit] + f"\n[... tronqué, {len(reader.pages)} pages au total]"
     return text
 
 
@@ -319,7 +326,26 @@ def _excel_report(code: str, base: bytes, new: bytes) -> str:
             lines.append(f"- Feuille « {ws.title} » : {-diff} ligne(s) supprimée(s) ({before} → {after})")
         else:
             lines.append(f"- Feuille « {ws.title} » : {after} lignes, contenu réorganisé ou mis en forme")
+    charts_new, images_new = _media_counts(new)
+    charts_old, images_old = _media_counts(base)
+    if charts_new > charts_old:
+        lines.append(f"- **{charts_new - charts_old} graphique(s) ajouté(s)**")
+    lost = (charts_old - charts_new if charts_new < charts_old else 0) + (images_old - images_new if images_new < images_old else 0)
+    if lost:
+        lines.append(f"- Attention : {lost} graphique(s) ou image(s) du fichier d'origine n'ont pas pu être conservés.")
     return "✅ **Ton fichier Excel est prêt.**\n\n" + "\n".join(lines) + "\n\nTélécharge-le avec le bouton ci-dessous."
+
+
+def _media_counts(data: bytes) -> tuple[int, int]:
+    """(nombre de graphiques, nombre d'images) contenus dans le classeur."""
+    import re as _re
+    import zipfile
+
+    names = zipfile.ZipFile(io.BytesIO(data)).namelist()
+    return (
+        sum(1 for n in names if _re.fullmatch(r"xl/charts/chart\d+\.xml", n)),
+        sum(1 for n in names if n.startswith("xl/media/")),
+    )
 
 
 def _signature(data: bytes) -> list:
@@ -341,6 +367,7 @@ def _signature(data: bytes) -> list:
             sorted(str(m) for m in ws.merged_cells.ranges),
             sorted((t.displayName, t.ref) for t in ws.tables.values()),
         ))
+    sig.append(_media_counts(data))
     return sig
 
 
@@ -440,11 +467,11 @@ class Chat:
     def _excel(self) -> bytes | None:
         return db.get_file(self.conv_id, "current.xlsx") if self.excel_name else None
 
-    def _load_file(self, name: str, data: bytes) -> str:
+    def _load_file(self, name: str, data: bytes, limit: int = MAX_FILE_CHARS) -> str:
         """Charge un fichier joint. Retourne du texte à ajouter à la question."""
         ext = Path(name).suffix.lower()
         if ext == ".pdf":
-            return f"\n\n[Contenu du PDF « {name} »]\n{_pdf_text(data)}"
+            return f"\n\n[Contenu du PDF « {name} »]\n{_pdf_text(data, limit)}"
         if ext in (".xlsx", ".xlsm", ".csv"):
             if ext == ".csv":
                 data = _csv_to_xlsx(data)
@@ -453,7 +480,7 @@ class Chat:
             self.excel_name = name
             return f"\n\n[Fichier Excel « {name} » chargé]"
         if ext in (".txt", ".md", ".py", ".json", ".html", ".js", ".sql"):
-            return f"\n\n[Contenu de « {name} »]\n{data.decode('utf-8', 'replace')[:MAX_FILE_CHARS]}"
+            return f"\n\n[Contenu de « {name} »]\n{data.decode('utf-8', 'replace')[:limit]}"
         raise ValueError(f"Type de fichier non géré : {ext} (PDF, xlsx, csv, txt, images)")
 
     def _edit_excel(self, code: str, base: bytes) -> str:
@@ -480,26 +507,39 @@ class Chat:
     def ask(
         self,
         question: str,
-        image: str | None = None,
-        file: tuple[str, bytes] | None = None,
+        images: list[str] | None = None,
+        files: list[tuple[str, bytes]] | None = None,
     ) -> tuple[str, str]:
         """Retourne (réponse affichée, nom du fournisseur utilisé).
 
-        `image` = data URL optionnelle. `file` = (nom, octets) : PDF, Excel, CSV, texte.
+        `images` = data URL ; `files` = [(nom, octets)] : PDF, Excel, CSV, texte.
         Les fichiers produits pendant l'appel sont listés dans `self.turn_files`.
         """
         self.turn_files = []
+        images = [i for i in (images or []) if i]
+        files = files or []
+        if sum(Path(n).suffix.lower() in (".xlsx", ".xlsm", ".csv") for n, _ in files) > 1:
+            raise ValueError("Un seul classeur Excel à la fois : envoie-les dans des messages séparés.")
+        image = bool(images)
+        limit = max(3000, MAX_FILE_CHARS // max(1, len(files)))  # budget de texte partagé
         full_q = question
         marker = ""
-        if file:
-            full_q += self._load_file(*file)
-            marker += f" [fichier joint : {file[0]}]"
-        if image:
-            marker += " [image jointe]"
+        for name, data in files:
+            full_q += self._load_file(name, data, limit)
+        if files:
+            marker += " [fichiers joints : " + ", ".join(n for n, _ in files) + "]"
+        if images:
+            marker += f" [{len(images)} image(s) jointe(s)]"
         # L'historique ne garde que le texte court (fichiers/images coûtent beaucoup de tokens)
         self.history.append({"role": "user", "content": question + marker})
 
         system = SYSTEM_PROMPT + f"\n\nDate d'aujourd'hui : {_today()}."
+        memory = db.get_memory(self.user_id).strip()
+        if memory:
+            system += (
+                "\n\nProfil de l'utilisateur (ce qu'il t'a demandé de toujours savoir et respecter ; "
+                "utilise-le naturellement, sans le répéter) :\n" + memory[:1500]
+            )
         recent = self.history[-5:-1]
         if DOC_HINT.search(question) or any("```document_" in m["content"] for m in recent):
             system += "\n\n" + DOC_PROMPT
@@ -514,15 +554,13 @@ class Chat:
             for i, m in enumerate(ctx)
         ]
         messages = [{"role": "system", "content": system}, *ctx]
-        if image:
+        if images:
             messages[-1] = {
                 "role": "user",
-                "content": [
-                    {"type": "text", "text": full_q or "Décris cette image."},
-                    {"type": "image_url", "image_url": {"url": image}},
-                ],
+                "content": [{"type": "text", "text": full_q or "Décris cette image."}]
+                + [{"type": "image_url", "image_url": {"url": u}} for u in images],
             }
-        elif file:
+        elif files:
             messages[-1] = {"role": "user", "content": full_q}
 
         # pas de recherche web pendant un travail sur Excel (les petits modèles s'y perdent)
@@ -601,7 +639,7 @@ class Chat:
                     raise RuntimeError("réponse vide")
                 self.history.append({"role": "assistant", "content": stored})
                 if not self.title:
-                    self.title = (question or (file[0] if file else "Image")).strip()[:50]
+                    self.title = (question or (files[0][0] if files else "Image")).strip()[:50]
                 self.save()
                 return shown, p["name"]
             except Exception as e:  # quota, réseau, modèle indisponible...

@@ -15,6 +15,10 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 - 📊 **Excel** : envoie un classeur et dis ce que tu veux (« trie par date », « ajoute 20 équipements », « mets en forme ») → le fichier modifié est à télécharger *(la modification est désactivée sur le site en ligne par sécurité ; l'analyse reste possible. Active-la en local ou sur ton propre déploiement avec `ENABLE_EXCEL_SCRIPTS=1`)*
 - 📝 **Création de documents** Word et PDF (lettres, CV, rapports) à partir d'une simple demande
 - 🔁 **Bascule automatique entre fournisseurs d'IA gratuits** quand l'un est saturé ou en panne (Groq → Gemini → …), avec messages d'erreur lisibles
+- 🧠 **Mémoire personnelle** : un espace de paramètres où l'on écrit ce que l'IA doit toujours savoir (prénom, métier, style de réponse), utilisé dans toutes les conversations
+- 🎙️ **Dictée vocale** et **lecture des réponses à voix haute** (reconnaissance et synthèse vocales du navigateur, en français)
+- 📎 **Plusieurs fichiers à la fois** (par exemple deux PDF à comparer) et **photo directe** depuis l'appareil du téléphone
+- 📈 **Graphiques dans les Excel** générés (barres, courbes, secteurs) quand les données s'y prêtent
 - 📱 **Responsive** : menu coulissant sur mobile
 
 ## Aperçu
@@ -24,6 +28,10 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 | ![Connexion](docs/screenshots/01-connexion.png) | ![Conversation](docs/screenshots/02-conversation.png) |
 | **Création d'un document** | **Excel modifié** |
 | ![Document](docs/screenshots/03-document.png) | ![Excel](docs/screenshots/05-excel-resultat.png) |
+
+| Paramètres et mémoire personnelle | Excel avec graphique |
+|---|---|
+| ![Paramètres](docs/screenshots/08-parametres.png) | ![Graphique](docs/screenshots/10-graphique-excel.png) |
 
 | Mobile | Menu mobile |
 |---|---|

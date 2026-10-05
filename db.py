@@ -69,6 +69,11 @@ files = Table(
     Column("data", LargeBinary, nullable=False),
     PrimaryKeyConstraint("conv_id", "name"),
 )
+profiles = Table(
+    "profiles", meta,
+    Column("user_id", String(32), primary_key=True),
+    Column("memory", Text, nullable=False, default=""),
+)
 usage = Table(
     "usage", meta,
     Column("user_id", String(32), nullable=False),
@@ -195,6 +200,20 @@ def list_outputs(conv_id: str) -> list[str]:
             select(files.c.name).where(and_(files.c.conv_id == conv_id, files.c.kind == "output")).order_by(files.c.name)
         ).all()
     return [r.name for r in rows]
+
+
+# ---------- mémoire personnelle ----------
+def get_memory(user_id: str) -> str:
+    with engine.connect() as c:
+        row = c.execute(select(profiles.c.memory).where(profiles.c.user_id == user_id)).first()
+    return row.memory if row else ""
+
+
+def set_memory(user_id: str, text: str):
+    with engine.begin() as c:
+        res = c.execute(update(profiles).where(profiles.c.user_id == user_id).values(memory=text))
+        if res.rowcount == 0:
+            c.execute(insert(profiles).values(user_id=user_id, memory=text))
 
 
 # ---------- quota journalier ----------
