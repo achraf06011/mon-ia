@@ -13,6 +13,7 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 - 👤 **Comptes utilisateurs** : chaque personne a son propre historique de conversations (renommer, supprimer, copier une réponse)
 - 📄 **Lecture de PDF** et d'**images** (analyse, résumé, questions)
 - 📊 **Excel** : envoie un classeur et dis ce que tu veux (« trie par date », « ajoute 20 équipements », « mets en forme ») → le fichier modifié est à télécharger *(la modification est désactivée sur le site en ligne par sécurité ; l'analyse reste possible. Active-la en local ou sur ton propre déploiement avec `ENABLE_EXCEL_SCRIPTS=1`)*
+- 🗄️ **Bases de données SQLite** : envoie un fichier `.db` ou `.sqlite`, pose des questions sur les données (requêtes SQL générées par l'IA) ou demande de la modifier (« ajoute 5 équipements ») ; la base modifiée est à télécharger, l'originale n'est jamais touchée
 - 📝 **Création de documents** Word et PDF (lettres, CV, rapports) à partir d'une simple demande
 - 🔁 **Bascule automatique entre fournisseurs d'IA gratuits** quand l'un est saturé ou en panne (Groq → Gemini → …), avec messages d'erreur lisibles
 - 🧠 **Mémoire personnelle** : un espace de paramètres où l'on écrit ce que l'IA doit toujours savoir (prénom, métier, style de réponse), utilisé dans toutes les conversations
@@ -74,6 +75,7 @@ Variables : `DATABASE_URL`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `SIGNUP_CODE`, `DA
 ## Limites connues
 
 - Modèles gratuits : quotas partagés entre tous les utilisateurs, la qualité varie selon le modèle disponible.
+- Bases de données : seuls les fichiers SQLite sont modifiables (un export MySQL/PostgreSQL est lu comme du texte, sans modification).
 - Pas de « mot de passe oublié » ni de suppression de compte.
 - Sur Vercel : fichiers envoyés limités à ~3 Mo, réponse en moins de 60 s.
 

@@ -123,7 +123,7 @@ form{padding:8px;gap:6px}form button{padding:11px 10px}#q{padding:11px 10px}
 <form id="f"><button type="button" id="att" title="Joindre un fichier (image, PDF, Excel, CSV...)" style="background:#444">&#128206;</button>
 <button type="button" id="cam" class="cam" title="Prendre une photo" style="background:#444"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></button>
 <input type="file" id="camfile" accept="image/*" capture="environment" hidden>
-<input type="file" id="file" accept="image/*,.pdf,.xlsx,.xlsm,.csv,.txt,.md,.json,.py" multiple hidden>
+<input type="file" id="file" accept="image/*,.pdf,.xlsx,.xlsm,.csv,.txt,.md,.json,.py,.db,.sqlite,.sqlite3,.sql" multiple hidden>
 <button type="button" id="mic" title="Dicter (micro)" aria-label="Dicter" style="background:#444;display:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
 <input id="q" placeholder="Pose ta question…" autofocus autocomplete="off">
 <button>Envoyer</button></form>
@@ -166,7 +166,7 @@ if(canSpeak){const s=document.createElement('button');s.type='button';s.textCont
 el.appendChild(d)}
 function typeInto(el,text,done){const parts=text.split(/(\s+)/);const per=Math.max(1,Math.ceil(parts.length/90));let i=0;
 (function tick(){i=Math.min(parts.length,i+per);render(el,parts.slice(0,i).join(''));log.scrollTop=log.scrollHeight;if(i<parts.length)setTimeout(tick,22);else if(done)done()})()}
-function statusFor(t,fl,imgs){if(fl.length){if(fl.length>1)return 'Lecture des '+fl.length+' fichiers\u2026';const n=fl[0].name;if(/\.(xlsx|xlsm|csv)$/i.test(n))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(n))return 'Lecture du PDF\u2026';return 'Lecture du fichier\u2026'}
+function statusFor(t,fl,imgs){if(fl.length){if(fl.length>1)return 'Lecture des '+fl.length+' fichiers\u2026';const n=fl[0].name;if(/\.(xlsx|xlsm|csv)$/i.test(n))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(n))return 'Lecture du PDF\u2026';if(/\.(db|sqlite3?|sql)$/i.test(n))return 'Lecture de la base de données\u2026';return 'Lecture du fichier\u2026'}
 if(imgs.length)return imgs.length>1?'Analyse des images\u2026':'Analyse de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
 function links(el,names){names.forEach(n=>{const l=document.createElement('a');l.className='dl';l.href='/download?c='+convId+'&f='+encodeURIComponent(n);l.textContent='⬇ '+n;l.download=n;el.appendChild(l)})}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',body:JSON.stringify(body)});if(r.status===401){location.reload();throw new Error('Session expirée')}return r.json()}

@@ -15,6 +15,7 @@ from pathlib import Path
 import db
 import docgen
 import sandbox
+import sqldb
 
 load_dotenv()
 
@@ -181,6 +182,67 @@ EXCEL_READONLY_PROMPT = (
     "Tu peux l'analyser et répondre aux questions, mais la modification de fichiers Excel "
     "est désactivée sur ce serveur : dis-le si on te demande de le modifier."
 )
+
+
+# Bases de données SQLite : lecture par l'outil sql_query, modification par un bloc ```sql_script
+SQL_EDIT = os.getenv("ENABLE_SQL_EDIT", "1") != "0"
+SQL_RE = re.compile(r"```sql_script[ \t]*\r?\n(.*?)```", re.DOTALL)
+DB_EXTS = (".db", ".sqlite", ".sqlite3", ".db3")
+
+TOOL_SQL = {
+    "type": "function",
+    "function": {
+        "name": "sql_query",
+        "description": "Exécute une requête SELECT (lecture seule) sur la base de données SQLite chargée "
+        "et retourne les premières lignes. À utiliser pour répondre à toute question sur les données.",
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Requête SQL SELECT"}},
+            "required": ["query"],
+        },
+    },
+}
+
+SQL_PROMPT = (
+    "Une base de données SQLite est chargée (« {name} »). Structure et aperçu :\n{summary}\n\n"
+    "Pour répondre à une question sur les données, appelle l'outil sql_query avec une requête SELECT "
+    "(autant de fois que nécessaire : COUNT, SUM, JOIN...). Pour MODIFIER la base (ajouter des lignes ou des "
+    "équipements, mettre à jour, supprimer, créer une table...), réponds UNIQUEMENT par un bloc de ce format "
+    "exact, sans texte avant ni après :\n```sql_script\n-- RESUME: ce que tu fais, en une phrase en français\n"
+    "instructions SQL SQLite\n```\n"
+    "Pour AJOUTER des lignes : respecte les colonnes, les types, les contraintes (NOT NULL, UNIQUE, clés "
+    "étrangères : utilise des identifiants de tables liées qui existent), continue la numérotation des "
+    "identifiants et des codes existants (voir « dernier identifiant » ci-dessus ; une colonne INTEGER PRIMARY "
+    "KEY peut aussi être omise pour s'auto-incrémenter), avec des valeurs réalistes et cohérentes avec les "
+    "lignes existantes. N'utilise ni PRAGMA, ni ATTACH. Si le script échoue, je te renverrai l'erreur : "
+    "corrige-le et renvoie un script complet."
+)
+SQL_READONLY_PROMPT = (
+    "Une base de données SQLite est chargée (« {name} »). Structure et aperçu :\n{summary}\n\n"
+    "Réponds aux questions avec l'outil sql_query (SELECT). La modification de bases de données est "
+    "désactivée sur ce serveur : dis-le si on te demande de la modifier."
+)
+
+
+def _sql_report(code: str, res: dict) -> str:
+    """Message de fin pour une modification de base : phrase de l'IA (-- RESUME) + différences mesurées."""
+    lines = []
+    m = re.search(r"--\s*RESUME\s*:\s*(.+)", code)
+    if m:
+        lines.append(f"**Ce qui a été fait :** {m.group(1).strip()}")
+    before, after = res["before"], res["after"]
+    for t in sorted(after):
+        a, b = after[t], before.get(t)
+        if b is None:
+            lines.append(f"- Nouvelle table « {t} » : {a} ligne(s)")
+        elif a > b:
+            lines.append(f"- Table « {t} » : **{a - b} ligne(s) ajoutée(s)** ({b} → {a})")
+        elif a < b:
+            lines.append(f"- Table « {t} » : {b - a} ligne(s) supprimée(s) ({b} → {a})")
+    for t in sorted(set(before) - set(after)):
+        lines.append(f"- Table « {t} » supprimée")
+    lines.append(f"- {res['changes']} modification(s) appliquée(s) au total")
+    return "✅ **Ta base de données est modifiée.**\n\n" + "\n".join(lines) + "\n\nTélécharge-la avec le bouton ci-dessous (ton fichier d'origine n'est pas touché)."
 
 
 def display_text(text: str) -> str:
@@ -479,9 +541,41 @@ class Chat:
             db.put_file(self.conv_id, "current.xlsx", "excel", data)
             self.excel_name = name
             return f"\n\n[Fichier Excel « {name} » chargé]"
+        if ext in DB_EXTS or ext == ".sql":
+            blob = None
+            if ext == ".sql":
+                blob = sqldb.from_sql_dump(data)  # None si ce n'est pas du SQLite valide (ex. dump MySQL)
+            else:
+                sqldb.check(data)
+                blob = data
+            if blob is not None:
+                db.put_file(self.conv_id, "current.db", "sqlite", blob)
+                db.put_file(self.conv_id, "current.db.name", "meta", (Path(name).stem + ".db").encode("utf-8"))
+                return f"\n\n[Base de données SQLite « {name} » chargée]"
         if ext in (".txt", ".md", ".py", ".json", ".html", ".js", ".sql"):
             return f"\n\n[Contenu de « {name} »]\n{data.decode('utf-8', 'replace')[:limit]}"
         raise ValueError(f"Type de fichier non géré : {ext} (PDF, xlsx, csv, txt, images)")
+
+    def _sqlite(self) -> bytes | None:
+        return db.get_file(self.conv_id, "current.db")
+
+    def _sqlite_name(self) -> str:
+        raw = db.get_file(self.conv_id, "current.db.name")
+        return raw.decode("utf-8") if raw else "base.db"
+
+    def _edit_sqlite(self, code: str, base: bytes) -> tuple[bool, str]:
+        # `base` = base telle qu'elle était au début de la demande (un nouvel essai repart de la même base)
+        res = sqldb.execute_script(base, code)
+        if res["error"]:
+            return False, res["error"]
+        if not res["changes"] and res["before"] == res["after"]:
+            return False, "Aucune modification détectée (0 ligne touchée) : refais le script pour appliquer réellement la demande."
+        name = "modifie_" + self._sqlite_name()
+        db.put_file(self.conv_id, "current.db", "sqlite", res["data"])  # devient la base courante
+        db.put_file(self.conv_id, name, "output", res["data"])
+        if name not in self.turn_files:
+            self.turn_files.append(name)
+        return True, _sql_report(code, res)
 
     def _edit_excel(self, code: str, base: bytes) -> str:
         # `base` = classeur tel qu'il était au début de la demande : un nouvel essai après
@@ -520,6 +614,8 @@ class Chat:
         files = files or []
         if sum(Path(n).suffix.lower() in (".xlsx", ".xlsm", ".csv") for n, _ in files) > 1:
             raise ValueError("Un seul classeur Excel à la fois : envoie-les dans des messages séparés.")
+        if sum(Path(n).suffix.lower() in DB_EXTS for n, _ in files) > 1:
+            raise ValueError("Une seule base de données à la fois : envoie-les dans des messages séparés.")
         image = bool(images)
         limit = max(3000, MAX_FILE_CHARS // max(1, len(files)))  # budget de texte partagé
         full_q = question
@@ -547,6 +643,10 @@ class Chat:
         if base:
             tpl = EXCEL_PROMPT if EXCEL_EDIT else EXCEL_READONLY_PROMPT
             system += "\n\n" + tpl.format(name=self.excel_name, summary=_excel_summary(base))
+        sqlb = self._sqlite()
+        if sqlb:
+            tpl = SQL_PROMPT if SQL_EDIT else SQL_READONLY_PROMPT
+            system += "\n\n" + tpl.format(name=self._sqlite_name(), summary=sqldb.summary(sqlb))
         ctx = self.history[-MAX_HISTORY:]
         # les anciennes réponses longues sont tronquées pour économiser les tokens gratuits
         ctx = [
@@ -565,6 +665,8 @@ class Chat:
 
         # pas de recherche web pendant un travail sur Excel (les petits modèles s'y perdent)
         tools = [] if (base and EXCEL_EDIT) else [TOOL_WEB]
+        if sqlb:
+            tools.append(TOOL_SQL)
         providers = available_providers()
         if image:
             providers = [p for p in providers if p.get("vision")]
@@ -605,7 +707,11 @@ class Chat:
                                 {
                                     "role": "tool",
                                     "tool_call_id": call.id,
-                                    "content": web_search(args.get("query", "")),
+                                    "content": (
+                                        sqldb.query(sqlb, args.get("query", ""))
+                                        if call.function.name == "sql_query" and sqlb
+                                        else web_search(args.get("query", ""))
+                                    ),
                                 }
                             )
                         continue
@@ -624,6 +730,21 @@ class Chat:
                             {
                                 "role": "user",
                                 "content": "[Résultat de l'exécution de ton script]\n"
+                                f"{result}\nCorrige l'erreur et renvoie un script complet.",
+                            }
+                        )
+                        continue
+                    ssc = SQL_RE.search(text) if (sqlb and SQL_EDIT) else None
+                    if ssc:
+                        ok, result = self._edit_sqlite(ssc.group(1), sqlb)
+                        if ok:
+                            stored = shown = result
+                            break
+                        msgs.append({"role": "assistant", "content": text})
+                        msgs.append(
+                            {
+                                "role": "user",
+                                "content": "[Résultat de l'exécution de ton script SQL]\n"
                                 f"{result}\nCorrige l'erreur et renvoie un script complet.",
                             }
                         )
