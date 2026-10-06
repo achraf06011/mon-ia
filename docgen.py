@@ -2,6 +2,12 @@
 import io
 import re
 import unicodedata
+from pathlib import Path
+
+FONTS = Path(__file__).parent / "fonts"
+AR_RE = re.compile(r"[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]")  # arabe, hébreu... (écritures de droite à gauche)
+# caractères que les polices PDF standard (cp1252) savent afficher
+NEEDS_UNICODE_RE = re.compile(r"[^\x00-\xff\u2018\u2019\u201c\u201d\u2013\u2014\u2026\u20ac\u2022\u202f\u2011\u2192\u2713\u2714\u2212]")
 
 INLINE_RE = re.compile(r"(\*\*.+?\*\*|\*.+?\*|`.+?`)")
 
@@ -156,6 +162,27 @@ def make_docx(md: str, path):
                 bottom.set(qn(k), v)
             borders.append(bottom)
             pPr.append(borders)
+    # paragraphes en arabe/hébreu : sens de lecture de droite à gauche
+    def all_paragraphs():
+        yield from doc.paragraphs
+        for t in doc.tables:
+            for row in t.rows:
+                for cell in row.cells:
+                    yield from cell.paragraphs
+
+    after = {"adjustRightInd", "snapToGrid", "spacing", "ind", "contextualSpacing", "mirrorIndents",
+             "suppressOverlap", "jc", "textDirection", "textAlignment", "textboxTightWrap", "outlineLvl",
+             "divId", "cnfStyle", "rPr", "sectPr", "pPrChange"}
+    for par in all_paragraphs():
+        if AR_RE.search(par.text):
+            pPr = par._p.get_or_add_pPr()
+            if pPr.find(qn("w:bidi")) is None:
+                bidi = OxmlElement("w:bidi")
+                nxt = next((c for c in pPr if c.tag.split("}")[1] in after), None)
+                if nxt is not None:
+                    nxt.addprevious(bidi)
+                else:
+                    pPr.append(bidi)
     doc.save(path)
 
 
@@ -170,65 +197,118 @@ def _pdf_safe(s: str) -> str:
     return s.translate(_PDF_MAP).encode("cp1252", "ignore").decode("cp1252")
 
 
-def _pdf_inline(text: str) -> str:
+def _esc(t: str) -> str:
+    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _rtl_line(text: str) -> str:
+    """Texte arabe/hébreu prêt pour reportlab : lettres reliées (reshaper) puis ordre visuel (bidi)."""
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+
+    plain = re.sub(r"\*\*|\*|`", "", text)
+    return get_display(arabic_reshaper.reshape(plain))
+
+
+def _pdf_inline(text: str, uni: bool = False, wrap: tuple | None = None) -> str:
+    """Convertit le Markdown en balises reportlab. `uni` : polices Unicode (arabe, etc.) au lieu de cp1252.
+    `wrap` = (police, taille, largeur) : pour l'arabe, le texte est coupé en lignes AVANT l'ordre visuel."""
+    if uni and AR_RE.search(text):
+        import arabic_reshaper
+        from bidi.algorithm import get_display
+        from reportlab.lib.utils import simpleSplit
+
+        lines = []
+        for line in text.split("\n"):
+            shaped = arabic_reshaper.reshape(re.sub(r"\*\*|\*|`", "", line))
+            parts = simpleSplit(shaped, wrap[0], wrap[1], wrap[2]) if wrap else [shaped]
+            lines += [get_display(p) for p in parts]
+        return "<br/>".join(_esc(x) for x in lines)
+    fix = (lambda x: x) if uni else _pdf_safe
     out = []
     for part in INLINE_RE.split(text):
         if not part:
             continue
-        esc = _pdf_safe(part).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         if part.startswith("**") and part.endswith("**") and len(part) > 4:
-            out.append("<b>" + _pdf_safe(part[2:-2]).replace("&", "&amp;").replace("<", "&lt;") + "</b>")
+            out.append("<b>" + _esc(fix(part[2:-2])) + "</b>")
         elif part.startswith("`") and part.endswith("`") and len(part) > 2:
-            out.append("<font name='Courier'>" + _pdf_safe(part[1:-1]).replace("&", "&amp;").replace("<", "&lt;") + "</font>")
+            out.append("<font name='Courier'>" + _esc(fix(part[1:-1])) + "</font>")
         elif part.startswith("*") and part.endswith("*") and len(part) > 2:
-            out.append("<i>" + _pdf_safe(part[1:-1]).replace("&", "&amp;").replace("<", "&lt;") + "</i>")
+            out.append("<i>" + _esc(fix(part[1:-1])) + "</i>")
         else:
-            out.append(esc)
+            out.append(_esc(fix(part)))
     return "".join(out).replace("\n", "<br/>")
 
 
 def make_pdf(md: str, path):
     from reportlab.lib import colors
-    from reportlab.lib.enums import TA_LEFT
+    from reportlab.lib.enums import TA_LEFT, TA_RIGHT
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import cm
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.platypus import (
         HRFlowable, ListFlowable, ListItem, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle,
     )
 
+    uni = bool(NEEDS_UNICODE_RE.search(md))  # arabe, cyrillique, etc. : polices TrueType nécessaires
+    if uni:
+        for name, file in (("DejaVu", "DejaVuSans.ttf"), ("DejaVu-Bold", "DejaVuSans-Bold.ttf")):
+            if name not in pdfmetrics.getRegisteredFontNames():
+                pdfmetrics.registerFont(TTFont(name, str(FONTS / file)))
+        pdfmetrics.registerFontFamily("DejaVu", normal="DejaVu", bold="DejaVu-Bold", italic="DejaVu", boldItalic="DejaVu-Bold")
+        regular, bold = "DejaVu", "DejaVu-Bold"
+    else:
+        regular, bold = "Helvetica", "Helvetica-Bold"
+
     navy = colors.HexColor("#1F3A6E")
-    body = ParagraphStyle("body", fontName="Helvetica", fontSize=10.5, leading=15, spaceAfter=7, alignment=TA_LEFT)
+    body = ParagraphStyle("body", fontName=regular, fontSize=10.5, leading=15, spaceAfter=7, alignment=TA_LEFT)
     heads = {
-        1: ParagraphStyle("h1", parent=body, fontName="Helvetica-Bold", fontSize=20, leading=25, textColor=navy, spaceBefore=4, spaceAfter=10),
-        2: ParagraphStyle("h2", parent=body, fontName="Helvetica-Bold", fontSize=14.5, leading=19, textColor=navy, spaceBefore=12, spaceAfter=6),
-        3: ParagraphStyle("h3", parent=body, fontName="Helvetica-Bold", fontSize=12, leading=16, textColor=navy, spaceBefore=8, spaceAfter=4),
-        4: ParagraphStyle("h4", parent=body, fontName="Helvetica-Bold", fontSize=10.5, leading=14, spaceBefore=6, spaceAfter=3),
+        1: ParagraphStyle("h1", parent=body, fontName=bold, fontSize=20, leading=25, textColor=navy, spaceBefore=4, spaceAfter=10),
+        2: ParagraphStyle("h2", parent=body, fontName=bold, fontSize=14.5, leading=19, textColor=navy, spaceBefore=12, spaceAfter=6),
+        3: ParagraphStyle("h3", parent=body, fontName=bold, fontSize=12, leading=16, textColor=navy, spaceBefore=8, spaceAfter=4),
+        4: ParagraphStyle("h4", parent=body, fontName=bold, fontSize=10.5, leading=14, spaceBefore=6, spaceAfter=3),
     }
     cell = ParagraphStyle("cell", parent=body, fontSize=9.5, leading=12, spaceAfter=0)
-    cell_b = ParagraphStyle("cellb", parent=cell, fontName="Helvetica-Bold")
+    cell_b = ParagraphStyle("cellb", parent=cell, fontName=bold)
+    rtl_cache = {}
+
+    FRAME_W = A4[0] - 4.4 * cm
+
+    def P(text, style, width=None):
+        """Paragraphe ; aligné à droite si le texte est en arabe/hébreu."""
+        if uni and AR_RE.search(text):
+            style = rtl_cache.setdefault(style.name, ParagraphStyle(style.name + "_r", parent=style, alignment=TA_RIGHT))
+        return Paragraph(_pdf_inline(text, uni, (style.fontName, style.fontSize, (width or FRAME_W) - 2)), style)
 
     story = []
     for b in parse_blocks(md):
         kind = b[0]
         if kind == "h":
-            story.append(Paragraph(_pdf_inline(b[2]), heads[b[1]]))
+            story.append(P(b[2], heads[b[1]]))
         elif kind == "p":
-            story.append(Paragraph(_pdf_inline(b[1]), body))
+            story.append(P(b[1], body))
         elif kind in ("ul", "ol"):
-            items = [ListItem(Paragraph(_pdf_inline(t), body), leftIndent=14) for t in b[1]]
-            story.append(
-                ListFlowable(items, bulletType="bullet" if kind == "ul" else "1", start="-" if kind == "ul" else 1, leftIndent=16)
-            )
+            if uni and any(AR_RE.search(t) for t in b[1]):
+                for i, t in enumerate(b[1], 1):  # puce ou numéro en début de texte : affiché à droite
+                    story.append(P(("•  " if kind == "ul" else f"{i}. ") + t, body, FRAME_W - 12))
+            else:
+                items = [ListItem(P(t, body), leftIndent=14) for t in b[1]]
+                story.append(
+                    ListFlowable(items, bulletType="bullet" if kind == "ul" else "1", start="-" if kind == "ul" else 1, leftIndent=16)
+                )
             story.append(Spacer(1, 4))
         elif kind == "table":
             rows = b[1]
             ncols = max(len(r) for r in rows)
+            colw = FRAME_W / ncols
+            order = range(ncols - 1, -1, -1) if (uni and any(AR_RE.search(c) for c in rows[0])) else range(ncols)
             data = [
-                [Paragraph(_pdf_inline(r[c] if c < len(r) else ""), cell_b if ri == 0 else cell) for c in range(ncols)]
+                [P(r[c] if c < len(r) else "", cell_b if ri == 0 else cell, colw - 12) for c in order]
                 for ri, r in enumerate(rows)
             ]
-            t = Table(data, repeatRows=1, colWidths=[(A4[0] - 4.4 * cm) / ncols] * ncols)
+            t = Table(data, repeatRows=1, colWidths=[colw] * ncols)
             t.setStyle(
                 TableStyle(
                     [

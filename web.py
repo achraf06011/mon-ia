@@ -93,7 +93,7 @@ button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#ff
 .box{background:#161616;border:1px solid #2c2c2c;border-radius:14px;padding:22px;width:500px;max-width:100%;max-height:92vh;overflow:auto}
 .box h3{margin:0 0 4px;font-size:19px}.box .hint{color:#999;font-size:13px;margin:0 0 12px;line-height:1.5}
 .box textarea{width:100%;box-sizing:border-box;min-height:150px;padding:11px;border-radius:8px;border:1px solid #444;background:#0f0f0f;color:#eee;font:15px/1.5 system-ui,sans-serif;resize:vertical}
-.box .row{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:14px;color:#ccc}.box .row input{flex:none;width:auto}
+.box .row{display:flex;align-items:center;gap:10px;margin:14px 0;font-size:14px;color:#ccc}.box .row input{flex:none;width:auto}.box select{background:#0f0f0f;color:#eee;border:1px solid #444;border-radius:8px;padding:8px;font-size:14px;max-width:260px}
 .box .btns{display:flex;gap:8px;align-items:center}.box .ghost{background:#333}
 #mstat{color:#6fcf97;font-size:13px}.gear{background:#333;padding:6px 9px;line-height:0}
 .meb{display:flex;gap:6px;align-items:center}
@@ -125,13 +125,18 @@ form{padding:8px;gap:6px}form button{padding:11px 10px}#q{padding:11px 10px}
 <input type="file" id="camfile" accept="image/*" capture="environment" hidden>
 <input type="file" id="file" accept="image/*,.pdf,.xlsx,.xlsm,.csv,.txt,.md,.json,.py,.db,.sqlite,.sqlite3,.sql" multiple hidden>
 <button type="button" id="mic" title="Dicter (micro)" aria-label="Dicter" style="background:#444;display:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg></button>
-<input id="q" placeholder="Pose ta question…" autofocus autocomplete="off">
+<input id="q" dir="auto" placeholder="Pose ta question…" autofocus autocomplete="off">
 <button>Envoyer</button></form>
 </main>
 <div class="modal" id="modal"><div class="box">
 <h3>Paramètres</h3>
 <p class="hint"><b>Mémoire personnelle</b> : écris ici ce que l'IA doit toujours savoir (ton prénom, ton métier, ta façon préférée de recevoir les réponses). Elle s'en servira dans toutes tes conversations, sans que tu aies à le répéter.</p>
 <textarea id="mem" maxlength="1500" placeholder="Exemple : Je m'appelle Achraf, je suis étudiant en développement web. Réponds en français, de façon courte et claire, avec des exemples de code quand c'est utile."></textarea>
+<div class="row"><label for="lang">Langue de la dictée vocale</label><select id="lang">
+<option value="fr-FR">Français</option><option value="ar-MA">العربية — المغرب (دارجة)</option><option value="ar-SA">العربية (فصحى)</option>
+<option value="en-US">English</option><option value="es-ES">Español</option><option value="de-DE">Deutsch</option>
+<option value="it-IT">Italiano</option><option value="pt-PT">Português</option><option value="tr-TR">Türkçe</option><option value="nl-NL">Nederlands</option>
+</select></div>
 <div class="row" id="arow"><input type="checkbox" id="autoread"><label for="autoread">Lire automatiquement les réponses à voix haute</label></div>
 <div class="btns"><button id="msave">Enregistrer</button><button id="mclose" class="ghost">Fermer</button><span id="mstat"></span></div>
 </div></div>
@@ -139,8 +144,8 @@ form{padding:8px;gap:6px}form button{padding:11px 10px}#q{padding:11px 10px}
 const $=id=>document.getElementById(id);
 const log=$('log'),q=$('q'),prev=$('prev'),file=$('file');
 let atts=[],busy=false,convId=null,list=[],maxBody=12*1024*1024,curBtn=null;
-function render(el,t){if(window.marked&&window.DOMPurify){el.innerHTML=DOMPurify.sanitize(marked.parse(t,{breaks:true}))}else{el.style.whiteSpace='pre-wrap';el.textContent=t}}
-function add(c,t,imgs,labels){const d=document.createElement('div');d.className='m '+c;
+function render(el,t){if(window.marked&&window.DOMPurify){el.innerHTML=DOMPurify.sanitize(marked.parse(t,{breaks:true}));el.querySelectorAll('p,li,h1,h2,h3,h4,blockquote,td,th').forEach(x=>x.setAttribute('dir','auto'))}else{el.style.whiteSpace='pre-wrap';el.textContent=t}}
+function add(c,t,imgs,labels){const d=document.createElement('div');d.className='m '+c;d.dir='auto';
 (imgs||[]).forEach(src=>{const i=document.createElement('img');i.src=src;i.style='max-height:160px;border-radius:8px;display:block;margin-bottom:6px';d.appendChild(i)});
 if(labels&&labels.length)d.appendChild(document.createTextNode('\u{1F4CE} '+labels.join(', ')+'\n'));
 d.appendChild(document.createTextNode(t));log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
@@ -149,14 +154,18 @@ async function copyText(t,btn){try{await navigator.clipboard.writeText(t)}catch(
 /* ---- lecture à voix haute (synthèse vocale du navigateur : voix françaises gratuites, très naturelles sous Edge) ---- */
 const canSpeak='speechSynthesis' in window;
 function plain(md){const d=document.createElement('div');render(d,md);return d.textContent||''}
-function pickVoice(){const v=speechSynthesis.getVoices().filter(x=>/^fr/i.test(x.lang));return v.find(x=>/natural|online/i.test(x.name))||v.find(x=>/google|microsoft|thomas|amelie|audrey/i.test(x.name))||v[0]}
+function getLang(){try{return localStorage.getItem('lang')||'fr-FR'}catch(e){return 'fr-FR'}}
+function speechLang(text){const ar=(text.match(/[\u0590-\u08FF]/g)||[]).length;const l=getLang();
+if(ar>text.length*0.3)return l.startsWith('ar')?l:'ar-SA';return l.startsWith('ar')?'fr-FR':l}
+function pickVoice(lang){const base=lang.slice(0,2).toLowerCase();const v=speechSynthesis.getVoices().filter(x=>(x.lang||'').toLowerCase().startsWith(base));
+return v.find(x=>x.lang.replace('_','-').toLowerCase()===lang.toLowerCase()&&/natural|online/i.test(x.name))||v.find(x=>x.lang.replace('_','-').toLowerCase()===lang.toLowerCase())||v.find(x=>/natural|online/i.test(x.name))||v.find(x=>/google|microsoft/i.test(x.name))||v[0]}
 function setBtn(b,on){if(!b)return;if(on){b.dataset.on='1';b.textContent='Arrêter'}else{delete b.dataset.on;b.textContent='Écouter'}}
 function stopSpeak(){if(!canSpeak)return;speechSynthesis.cancel();setBtn(curBtn,false);curBtn=null}
 function speak(md,btn){if(!canSpeak)return;stopSpeak();const text=plain(md).replace(/\s+/g,' ').trim();if(!text)return;
 const sentences=text.match(/[^.!?\n]+[.!?]*\s*/g)||[text];const parts=[];let cur='';
 sentences.forEach(c=>{if((cur+c).length>200&&cur){parts.push(cur);cur=c}else cur+=c});if(cur)parts.push(cur);
-curBtn=btn||null;setBtn(curBtn,true);const voice=pickVoice();
-parts.forEach((p,i)=>{const u=new SpeechSynthesisUtterance(p.trim());u.lang='fr-FR';if(voice)u.voice=voice;
+curBtn=btn||null;setBtn(curBtn,true);const lang=speechLang(text),voice=pickVoice(lang);
+parts.forEach((p,i)=>{const u=new SpeechSynthesisUtterance(p.trim());u.lang=lang;if(voice)u.voice=voice;
 if(i===parts.length-1){u.onend=u.onerror=()=>{setBtn(btn,false);if(curBtn===btn)curBtn=null}}
 speechSynthesis.speak(u)})}
 function autoRead(){try{return localStorage.getItem('autoread')==='1'}catch(e){return false}}
@@ -213,7 +222,7 @@ document.addEventListener('paste',e=>{const imgs=[...e.clipboardData.items].filt
 /* ---- dictée vocale (reconnaissance vocale du navigateur : Edge, Chrome, Safari) ---- */
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;let rec=null;
 if(SR){$('mic').style.display=''}
-$('mic').onclick=()=>{if(rec){rec.stop();return}stopSpeak();rec=new SR();rec.lang='fr-FR';rec.interimResults=true;rec.continuous=true;
+$('mic').onclick=()=>{if(rec){rec.stop();return}stopSpeak();rec=new SR();rec.lang=getLang();rec.interimResults=true;rec.continuous=true;
 const base=q.value?q.value.trim()+' ':'';
 rec.onresult=e=>{let tx='';for(let i=0;i<e.results.length;i++)tx+=e.results[i][0].transcript;q.value=base+tx};
 rec.onend=()=>{rec=null;$('mic').classList.remove('on');q.focus()};
@@ -221,11 +230,11 @@ rec.onerror=ev=>{if(ev.error==='not-allowed'||ev.error==='service-not-allowed')a
 try{rec.start();$('mic').classList.add('on')}catch(e){rec=null}};
 /* ---- paramètres + mémoire personnelle ---- */
 if(!canSpeak)$('arow').style.display='none';
-$('set').onclick=async()=>{closeMenu();$('modal').classList.add('open');$('mstat').textContent='';$('autoread').checked=autoRead();$('mem').value='';const m=await api('/api/memory');$('mem').value=m.memory||''};
+$('set').onclick=async()=>{closeMenu();$('modal').classList.add('open');$('mstat').textContent='';$('autoread').checked=autoRead();$('lang').value=getLang();$('mem').value='';const m=await api('/api/memory');$('mem').value=m.memory||''};
 const closeModal=()=>$('modal').classList.remove('open');
 $('mclose').onclick=closeModal;$('modal').onclick=e=>{if(e.target===$('modal'))closeModal()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
-$('msave').onclick=async()=>{await api('/api/memory',{memory:$('mem').value});try{localStorage.setItem('autoread',$('autoread').checked?'1':'0')}catch(e){}$('mstat').textContent='Enregistré \u2713';setTimeout(closeModal,700)};
+$('msave').onclick=async()=>{await api('/api/memory',{memory:$('mem').value});try{localStorage.setItem('autoread',$('autoread').checked?'1':'0');localStorage.setItem('lang',$('lang').value)}catch(e){}$('mstat').textContent='Enregistré \u2713';setTimeout(closeModal,700)};
 /* ---- envoi ---- */
 $('f').onsubmit=async e=>{e.preventDefault();if(busy)return;const t=q.value.trim();if(!t&&!atts.length)return;q.value='';stopSpeak();if(rec)rec.stop();
 const imgs=atts.filter(a=>a.type==='image'),fl=atts.filter(a=>a.type==='file');clearAtt();

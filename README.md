@@ -16,6 +16,7 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 - 🗄️ **Bases de données SQLite** : envoie un fichier `.db` ou `.sqlite`, pose des questions sur les données (requêtes SQL générées par l'IA) ou demande de la modifier (« ajoute 5 équipements ») ; la base modifiée est à télécharger, l'originale n'est jamais touchée
 - 📝 **Création de documents** Word et PDF (lettres, CV, rapports) à partir d'une simple demande
 - 🔁 **Bascule automatique entre fournisseurs d'IA gratuits** quand l'un est saturé ou en panne (Groq → Gemini → …), avec messages d'erreur lisibles
+- 🌍 **Toutes les langues**, y compris l'arabe et la **darija marocaine** (en lettres arabes ou en lettres latines) : l'agent répond dans la langue et l'écriture de l'utilisateur, affichage de droite à gauche, dictée dans la langue choisie, documents Word et PDF en arabe
 - 🧠 **Mémoire personnelle** : un espace de paramètres où l'on écrit ce que l'IA doit toujours savoir (prénom, métier, style de réponse), utilisé dans toutes les conversations
 - 🎙️ **Dictée vocale** et **lecture des réponses à voix haute** (reconnaissance et synthèse vocales du navigateur, en français)
 - 📎 **Plusieurs fichiers à la fois** (par exemple deux PDF à comparer) et **photo directe** depuis l'appareil du téléphone
@@ -83,4 +84,4 @@ Variables : `DATABASE_URL`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `SIGNUP_CODE`, `DA
 
 **Achraf Aachchak** · [GitHub @achraf06011](https://github.com/achraf06011)
 
-Licence [MIT](LICENSE)
+Licence [MIT](LICENSE) · Police [DejaVu](https://dejavu-fonts.github.io/) (licence libre) incluse pour les PDF en arabe

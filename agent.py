@@ -28,7 +28,12 @@ SYSTEM_PROMPT = os.getenv(
     "que tu fonctionnes grâce à des modèles d'IA ouverts, sans citer de marque. "
     "Tu es un assistant expert dans tous les domaines : programmation, "
     "cuisine, sciences, santé, droit, voyages, etc. Réponds de façon correcte, "
-    "claire et structurée, dans la langue de l'utilisateur. Si tu n'es pas sûr "
+    "claire et structurée. LANGUE : réponds toujours dans la langue ET l'écriture que l'utilisateur emploie : "
+    "français, anglais, espagnol, arabe, darija marocaine, amazigh, etc. Si l'utilisateur écrit en darija en "
+    "lettres arabes, réponds en darija en lettres arabes ; s'il écrit en darija en lettres latines (arabizi, "
+    "ex. « kifach ndir... », « chno hiya... » avec 3, 7, 9), réponds en darija en lettres latines, dans un ton "
+    "naturel de conversation marocaine, sans mélanger avec de l'arabe littéraire. Si une langue est demandée "
+    "explicitement (« réponds en anglais »), utilise-la. Si tu n'es pas sûr "
     "d'une information, dis-le au lieu d'inventer. Pour le code, donne des "
     "exemples fonctionnels. Tu peux chercher sur le web pour les infos récentes, "
     "mais fais au maximum 3 recherches puis réponds.",
@@ -173,7 +178,7 @@ EXCEL_PROMPT = (
     "Pour un fichier « bien organisé » : en-têtes en gras avec fond coloré, "
     "première ligne figée, filtres automatiques, largeur de colonnes ajustée, formats "
     "cohérents (dates, nombres). Commence ton script par UNE ligne de commentaire de la forme "
-    "« # RESUME: ce que tu fais, en une phrase en français ». Je t'enverrai le résultat de "
+    "« # RESUME: ce que tu fais, en une phrase, dans la langue de l'utilisateur ». Je t'enverrai le résultat de "
     "l'exécution : si erreur, renvoie un nouveau script complet. "
     "Si la demande ne nécessite pas de modifier le fichier (simple question), réponds normalement."
 )
@@ -314,6 +319,26 @@ DOC_HINT = re.compile(
     r"cr[ée]e|g[ée]n[èe]re|fichier|t[ée]l[ée]charg|modifie|corrige|rends",
     re.IGNORECASE,
 )
+
+
+_NON_LATIN = re.compile(r"[\u0590-\u08FF\u0400-\u04FF\u0900-\u0DFF\u0E00-\u0E7F\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF\uFB1D-\uFEFF]")
+# darija en lettres latines (arabizi) : chiffres 3 7 9 5 2 à l'intérieur d'un mot, ou mots typiques
+_ARABIZI = re.compile(
+    r"\b[a-z]*[2379][a-z]+\b|\b(salam|slm|labas|kifach|chno|chnou|wach|bghit|bghiti|mzyan|mzian|dyal|dial|"
+    r"3afak|choukran|shukran|bzaf|3lach|mnin|daba|walo|khouya|sahbi|nta|nti|howa|hiya|fin kayn|kayn|machi|"
+    r"ghadi|kan|dik|had|hadchi|hadi|wakha|yallah|inchallah|hamdullah|hamdulillah)\b",
+    re.IGNORECASE,
+)
+
+
+def _needs_gemini(text: str) -> bool:
+    """Arabe, darija (arabe ou lettres latines) et autres écritures non latines : Gemini les écrit bien mieux."""
+    if len(_NON_LATIN.findall(text)) >= 3:
+        return True
+    hits = _ARABIZI.findall(text)
+    digit_words = [h for h in hits if isinstance(h, str) and re.search(r"[2379]", h)]
+    marker_words = [h for h in (m.group(0) for m in _ARABIZI.finditer(text)) if not re.search(r"\d", h)]
+    return bool(digit_words) or len(marker_words) >= 2
 
 
 def _today() -> str:
@@ -677,6 +702,8 @@ class Chat:
         now = time.time()
         # on saute les fournisseurs en pause (quota épuisé, clé invalide...) sauf si tous le sont
         providers = [p for p in providers if _COOLDOWN.get(p["name"], 0) <= now] or providers
+        if _needs_gemini(question):  # tri stable : Gemini d'abord, le reste dans le même ordre
+            providers = sorted(providers, key=lambda p: not p["name"].startswith("Gemini"))
         errors = []
         for idx, p in enumerate(providers):
             try:
