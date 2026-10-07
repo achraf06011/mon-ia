@@ -303,7 +303,7 @@ def _fetch_image(prompt: str) -> bytes:
     prompt = " ".join(prompt.split())[:500]
     if not prompt:
         raise ValueError("description vide")
-    deadline = time.time() + (36 if SERVERLESS else 70)  # Vercel coupe les requêtes à 60 s
+    deadline = time.time() + (38 if SERVERLESS else 110)  # Vercel coupe les requêtes à 60 s
     last = "échec"
     n = 0
     while time.time() < deadline:
@@ -315,7 +315,7 @@ def _fetch_image(prompt: str) -> bytes:
         )
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (AA-assistant)"})
-            with urllib.request.urlopen(req, timeout=max(5, min(25, deadline - time.time()))) as r:
+            with urllib.request.urlopen(req, timeout=max(5, min(20, deadline - time.time()))) as r:
                 data = r.read(8_000_000)
                 if r.headers.get("Content-Type", "").startswith("image/") and len(data) > 3000:
                     return data
@@ -326,7 +326,7 @@ def _fetch_image(prompt: str) -> bytes:
                 break
         except Exception as e:
             last = str(e)[:100]
-        time.sleep(min(6, max(0, deadline - time.time())))
+        time.sleep(min(8, max(0, deadline - time.time())))
     raise RuntimeError(last)
 
 
