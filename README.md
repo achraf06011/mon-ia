@@ -17,6 +17,7 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 - 📝 **Création de documents** Word et PDF (lettres, CV, rapports) à partir d'une simple demande
 - 🔁 **Bascule automatique entre fournisseurs d'IA gratuits** quand l'un est saturé ou en panne (Groq → Gemini → …), avec messages d'erreur lisibles
 - 🌍 **Toutes les langues**, y compris l'arabe et la **darija marocaine** (en lettres arabes ou en lettres latines) : l'agent répond dans la langue et l'écriture de l'utilisateur, affichage de droite à gauche, dictée dans la langue choisie, documents Word et PDF en arabe
+- 🎨 **Génération d'images** à partir d'une description (service gratuit Pollinations, sans clé) : l'image s'affiche dans le chat et se télécharge ; limitée à 3 images par adresse IP et par 24 h
 - 🧠 **Mémoire personnelle** : un espace de paramètres où l'on écrit ce que l'IA doit toujours savoir (prénom, métier, style de réponse), utilisé dans toutes les conversations
 - 🎙️ **Dictée vocale** et **lecture des réponses à voix haute** (reconnaissance et synthèse vocales du navigateur, en français)
 - 📎 **Plusieurs fichiers à la fois** (par exemple deux PDF à comparer) et **photo directe** depuis l'appareil du téléphone
@@ -77,6 +78,7 @@ Variables : `DATABASE_URL`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `SIGNUP_CODE`, `DA
 
 - Modèles gratuits : quotas partagés entre tous les utilisateurs, la qualité varie selon le modèle disponible.
 - Bases de données : seuls les fichiers SQLite sont modifiables (un export MySQL/PostgreSQL est lu comme du texte, sans modification).
+- Images : le service gratuit est limité (≈ 1 image par minute, qualité correcte mais pas parfaite, petit filigrane) ; pas de génération de vidéo (aucune API vidéo de qualité n'est gratuite).
 - Pas de « mot de passe oublié » ni de suppression de compte.
 - Sur Vercel : fichiers envoyés limités à ~3 Mo, réponse en moins de 60 s.
 

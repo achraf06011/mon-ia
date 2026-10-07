@@ -69,6 +69,7 @@ button{padding:12px 18px;border-radius:8px;border:0;background:#2a4d8f;color:#ff
 .a hr{border:0;border-top:1px solid #333;margin:18px 0}
 .a strong{color:#fff}
 .a blockquote{margin:0 0 14px;padding:4px 14px;border-left:3px solid #2a4d8f;color:#bbb}
+.a img{max-width:100%;border-radius:10px;display:block;margin:6px 0 12px;cursor:zoom-in;background:#1c1c1c;min-height:60px}
 .a code{background:#333;padding:2px 6px;border-radius:5px;font-size:.9em}
 .a pre{background:#0b0b0b;border:1px solid #333;border-radius:8px;padding:12px 14px;overflow-x:auto;margin:0 0 14px}
 .a pre code{background:none;padding:0;line-height:1.5}
@@ -150,6 +151,7 @@ function add(c,t,imgs,labels){const d=document.createElement('div');d.className=
 if(labels&&labels.length)d.appendChild(document.createTextNode('\u{1F4CE} '+labels.join(', ')+'\n'));
 d.appendChild(document.createTextNode(t));log.appendChild(d);log.scrollTop=log.scrollHeight;return d}
 function closeMenu(){document.body.classList.remove('menu')}
+log.addEventListener('click',e=>{if(e.target.tagName==='IMG'&&e.target.closest('.a'))window.open(e.target.src,'_blank')});
 async function copyText(t,btn){try{await navigator.clipboard.writeText(t)}catch(e){const a=document.createElement('textarea');a.value=t;document.body.appendChild(a);a.select();document.execCommand('copy');a.remove()}btn.textContent='Copié \u2713';setTimeout(()=>btn.textContent='Copier',1500)}
 /* ---- lecture à voix haute (synthèse vocale du navigateur : voix françaises gratuites, très naturelles sous Edge) ---- */
 const canSpeak='speechSynthesis' in window;
@@ -176,7 +178,7 @@ el.appendChild(d)}
 function typeInto(el,text,done){const parts=text.split(/(\s+)/);const per=Math.max(1,Math.ceil(parts.length/90));let i=0;
 (function tick(){i=Math.min(parts.length,i+per);render(el,parts.slice(0,i).join(''));log.scrollTop=log.scrollHeight;if(i<parts.length)setTimeout(tick,22);else if(done)done()})()}
 function statusFor(t,fl,imgs){if(fl.length){if(fl.length>1)return 'Lecture des '+fl.length+' fichiers\u2026';const n=fl[0].name;if(/\.(xlsx|xlsm|csv)$/i.test(n))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(n))return 'Lecture du PDF\u2026';if(/\.(db|sqlite3?|sql)$/i.test(n))return 'Lecture de la base de données\u2026';return 'Lecture du fichier\u2026'}
-if(imgs.length)return imgs.length>1?'Analyse des images\u2026':'Analyse de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
+if(imgs.length)return imgs.length>1?'Analyse des images\u2026':'Analyse de l\u2019image\u2026';if(/imag|dessin|illustr|logo|affiche|poster|avatar|portrait|peinture|photo|draw|\u0635\u0648\u0631|\u0631\u0633\u0645/i.test(t))return 'Génération de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
 function links(el,names){names.forEach(n=>{const l=document.createElement('a');l.className='dl';l.href='/download?c='+convId+'&f='+encodeURIComponent(n);l.textContent='⬇ '+n;l.download=n;el.appendChild(l)})}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',body:JSON.stringify(body)});if(r.status===401){location.reload();throw new Error('Session expirée')}return r.json()}
 function renderList(){const box=$('list');box.innerHTML='';
@@ -304,6 +306,8 @@ CTYPES = {
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ".pdf": "application/pdf",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
 }
 
 # ---------- mots de passe (scrypt, bibliothèque standard) ----------
@@ -345,7 +349,7 @@ class Handler(BaseHTTPRequestHandler):
     # ----- utilitaires -----
     def _send(self, body: bytes, ctype="application/json", code=200, headers=None):
         self.send_response(code)
-        binary = ctype.startswith(("application/vnd", "application/pdf", "application/octet"))
+        binary = ctype.startswith(("application/vnd", "application/pdf", "application/octet", "image/"))
         self.send_header("Content-Type", ctype if binary else ctype + "; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("X-Content-Type-Options", "nosniff")
@@ -497,7 +501,7 @@ class Handler(BaseHTTPRequestHandler):
             cid = data.get("conv") or None
             if cid and not ID_RE.match(cid):
                 raise ValueError("Conversation introuvable")
-            chat = Chat(user.id, cid)
+            chat = Chat(user.id, cid, self._ip())
             images = data.get("images") or ([data["image"]] if data.get("image") else [])
             raw_files = data.get("files") or ([data["file"]] if data.get("file") else [])
             if len(images) + len(raw_files) > 6:

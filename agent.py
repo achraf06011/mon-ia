@@ -7,6 +7,12 @@ import json
 import os
 import re
 import time
+import hashlib
+import urllib.error
+import urllib.parse
+import urllib.request
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -248,6 +254,80 @@ def _sql_report(code: str, res: dict) -> str:
         lines.append(f"- Table « {t} » supprimée")
     lines.append(f"- {res['changes']} modification(s) appliquée(s) au total")
     return "✅ **Ta base de données est modifiée.**\n\n" + "\n".join(lines) + "\n\nTélécharge-la avec le bouton ci-dessous (ton fichier d'origine n'est pas touché)."
+
+
+# Génération d'images : Pollinations (gratuit, sans clé). Désactivable avec ENABLE_IMAGES=0.
+IMG_ON = os.getenv("ENABLE_IMAGES", "1") != "0"
+IMG_PER_IP_DAY = int(os.getenv("IMAGES_PER_IP_PER_DAY", "3"))  # images / adresse IP / 24 h glissantes
+MAX_IMAGES = 1  # par message : le service gratuit accepte ~1 image / 45 s par adresse IP
+IMG_HINT = re.compile(
+    r"imag|dessin|dessine|illustr|logo|affiche|poster|fond d.[ée]cran|wallpaper|avatar|portrait|peinture|"
+    r"photo|picture|draw|paint|sketch|g[ée]n[èe]re[- ]moi|cr[ée]e[- ]moi|صورة|صور|رسم|ارسم|تصميم|لوغو|"
+    r"\bsora\b|\bsurat\b",
+    re.IGNORECASE,
+)
+
+TOOL_IMG = {
+    "type": "function",
+    "function": {
+        "name": "generate_image",
+        "description": "Génère une image à partir d'une description et l'affiche à l'utilisateur. À utiliser dès que "
+        "l'utilisateur demande de créer, dessiner ou générer une image, un logo, une illustration, une affiche, etc.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "Description détaillée de l'image EN ANGLAIS : sujet, style (photo réaliste, "
+                    "illustration, peinture, 3D...), ambiance, éclairage, couleurs, composition.",
+                }
+            },
+            "required": ["prompt"],
+        },
+    },
+}
+IMG_PROMPT = (
+    "IMAGES : tu peux générer des images avec l'outil generate_image. Si l'utilisateur demande une image, un "
+    "dessin, un logo, une illustration, une affiche, etc., appelle l'outil avec une description détaillée EN "
+    "ANGLAIS (traduis sa demande, ajoute style, éclairage, couleurs). N'affirme jamais que tu ne peux pas "
+    "générer d'images. Une seule image par message (si on en demande plusieurs, génère la première et propose de faire la suivante au message suivant). L'image est affichée automatiquement : "
+    "écris ensuite une ou deux phrases courtes dans la langue de l'utilisateur, sans insérer de lien ni de "
+    "code Markdown pour l'image. Pour modifier une image déjà générée, appelle l'outil avec une nouvelle "
+    "description complète. Si l'outil échoue, dis-le simplement."
+)
+
+
+def _fetch_image(prompt: str) -> bytes:
+    """Télécharge une image depuis Pollinations. Le service gratuit répond 402/429 quand on va trop vite
+    (~1 image / 45 s par IP) : on réessaie un moment, puis on abandonne avec une erreur claire."""
+    prompt = " ".join(prompt.split())[:500]
+    if not prompt:
+        raise ValueError("description vide")
+    deadline = time.time() + (36 if SERVERLESS else 70)  # Vercel coupe les requêtes à 60 s
+    last = "échec"
+    n = 0
+    while time.time() < deadline:
+        n += 1
+        params = "model=flux&" if n % 3 else ""  # de temps en temps : modèle par défaut
+        url = (
+            "https://image.pollinations.ai/prompt/" + urllib.parse.quote(prompt)
+            + f"?{params}width=1024&height=1024&nologo=true&seed={uuid.uuid4().int % 10**6}"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (AA-assistant)"})
+            with urllib.request.urlopen(req, timeout=max(5, min(25, deadline - time.time()))) as r:
+                data = r.read(8_000_000)
+                if r.headers.get("Content-Type", "").startswith("image/") and len(data) > 3000:
+                    return data
+                last = f"réponse inattendue ({r.headers.get('Content-Type')}, {len(data)} octets)"
+        except urllib.error.HTTPError as e:
+            last = f"HTTP {e.code}"
+            if e.code not in (402, 429, 502, 503):
+                break
+        except Exception as e:
+            last = str(e)[:100]
+        time.sleep(min(6, max(0, deadline - time.time())))
+    raise RuntimeError(last)
 
 
 def display_text(text: str) -> str:
@@ -523,8 +603,11 @@ def available_providers() -> list[dict]:
 class Chat:
     """Une conversation d'un utilisateur (chargée depuis / sauvegardée dans la base)."""
 
-    def __init__(self, user_id: str, conv_id: str | None = None):
+    def __init__(self, user_id: str, conv_id: str | None = None, ip: str = "?"):
         self.user_id = user_id
+        # l'adresse IP n'est jamais stockée en clair : seulement son empreinte (pour le quota d'images)
+        self.ip_hash = hashlib.sha256(("aa-img|" + ip).encode()).hexdigest()
+        self.img_quota_hit = False
         self.title = ""
         self.history: list[dict] = []
         self.excel_name = ""  # nom d'origine du classeur Excel chargé
@@ -580,6 +663,21 @@ class Chat:
         if ext in (".txt", ".md", ".py", ".json", ".html", ".js", ".sql"):
             return f"\n\n[Contenu de « {name} »]\n{data.decode('utf-8', 'replace')[:limit]}"
         raise ValueError(f"Type de fichier non géré : {ext} (PDF, xlsx, csv, txt, images)")
+
+    def _gen_image(self, prompt: str) -> str | None:
+        """Génère une image, l'enregistre dans la conversation et retourne son nom de fichier (None si échec)."""
+        if IMG_PER_IP_DAY and db.image_count(self.ip_hash) >= IMG_PER_IP_DAY:
+            self.img_quota_hit = True
+            return None
+        try:
+            data = _fetch_image(prompt)
+        except Exception:
+            return None
+        slug = docgen.slug("# " + prompt)[:28] or "image"
+        name = f"image-{slug}-{uuid.uuid4().hex[:4]}.jpg"
+        db.put_file(self.conv_id, name, "output", data)
+        db.image_add(self.ip_hash)  # compté seulement si l'image a bien été générée
+        return name
 
     def _sqlite(self) -> bytes | None:
         return db.get_file(self.conv_id, "current.db")
@@ -668,6 +766,9 @@ class Chat:
         if base:
             tpl = EXCEL_PROMPT if EXCEL_EDIT else EXCEL_READONLY_PROMPT
             system += "\n\n" + tpl.format(name=self.excel_name, summary=_excel_summary(base))
+        want_img = IMG_ON and (IMG_HINT.search(question) or any("](/download" in m["content"] for m in recent))
+        if want_img:
+            system += "\n\n" + IMG_PROMPT
         sqlb = self._sqlite()
         if sqlb:
             tpl = SQL_PROMPT if SQL_EDIT else SQL_READONLY_PROMPT
@@ -692,6 +793,8 @@ class Chat:
         tools = [] if (base and EXCEL_EDIT) else [TOOL_WEB]
         if sqlb:
             tools.append(TOOL_SQL)
+        if want_img:
+            tools.append(TOOL_IMG)
         providers = available_providers()
         if image:
             providers = [p for p in providers if p.get("vision")]
@@ -720,27 +823,51 @@ class Chat:
                 model = p["vision_model"] if image else p["model"]
                 msgs = list(messages)
                 stored = shown = ""
+                turn_imgs: list[str] = []  # images générées pendant cette tentative
+                self.img_quota_hit = False
                 for _ in range(12):  # boucle : recherche web / script Excel
                     r = _create(client, model, msgs, tools, p.get("vision_max_tokens" if image else "max_tokens"), p.get("options"))
                     m = r.choices[0].message
                     if m.tool_calls:
                         msgs.append(m)
-                        for call in m.tool_calls:
+
+                        def _args(c):
                             try:
-                                args = json.loads(call.function.arguments or "{}")
+                                return json.loads(c.function.arguments or "{}")
                             except json.JSONDecodeError:
-                                args = {}
-                            msgs.append(
-                                {
-                                    "role": "tool",
-                                    "tool_call_id": call.id,
-                                    "content": (
-                                        sqldb.query(sqlb, args.get("query", ""))
-                                        if call.function.name == "sql_query" and sqlb
-                                        else web_search(args.get("query", ""))
-                                    ),
-                                }
-                            )
+                                return {}
+
+                        # images : générées en parallèle (plus rapide, et dans la limite par message)
+                        room = max(0, MAX_IMAGES - len(turn_imgs))
+                        todo = [c for c in m.tool_calls if c.function.name == "generate_image"][:room]
+                        made: dict[str, str | None] = {}
+                        if todo:
+                            with ThreadPoolExecutor(len(todo)) as ex:
+                                futs = {c.id: ex.submit(self._gen_image, str(_args(c).get("prompt", ""))) for c in todo}
+                            for cid, f in futs.items():
+                                try:
+                                    made[cid] = f.result()
+                                except Exception:
+                                    made[cid] = None
+                        for call in m.tool_calls:
+                            args = _args(call)
+                            if call.function.name == "generate_image":
+                                if call.id not in made:
+                                    result = "Limite atteinte : une seule image par message. Propose de générer la suivante au prochain message."
+                                elif made[call.id]:
+                                    turn_imgs.append(made[call.id])
+                                    result = "Image générée et affichée à l'utilisateur."
+                                elif self.img_quota_hit:
+                                    result = (f"Quota atteint : {IMG_PER_IP_DAY} images maximum par 24 h pour cet utilisateur. "
+                                              "Dis-le simplement et invite à réessayer demain.")
+                                else:
+                                    result = ("Échec : le service gratuit de génération d'images est saturé (il accepte environ une image par minute). "
+                                              "Dis à l'utilisateur de réessayer dans une minute.")
+                            elif call.function.name == "sql_query" and sqlb:
+                                result = sqldb.query(sqlb, args.get("query", ""))
+                            else:
+                                result = web_search(args.get("query", ""))
+                            msgs.append({"role": "tool", "tool_call_id": call.id, "content": result})
                         continue
                     text = _clean(m.content)
                     script = SCRIPT_RE.search(text) if (base and EXCEL_EDIT) else None
@@ -781,6 +908,17 @@ class Chat:
                         db.put_file(self.conv_id, name, "output", data)
                         if name not in self.turn_files:
                             self.turn_files.append(name)
+                    if turn_imgs:
+                        # le modèle invente parfois un faux lien d'image : on ne garde que les vraies images
+                        text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text).strip()
+                    if turn_imgs:  # images affichées sous la réponse (lien interne, propre à la conversation)
+                        gallery = "\n\n".join(
+                            f"![image](/download?c={self.conv_id}&f={urllib.parse.quote(n)})" for n in turn_imgs
+                        )
+                        left = max(0, IMG_PER_IP_DAY - db.image_count(self.ip_hash)) if IMG_PER_IP_DAY else None
+                        note = f"\n\n*Images restantes sur 24 h : {left}/{IMG_PER_IP_DAY}*" if left is not None else ""
+                        text = (text or "Voici l'image demandée.") + "\n\n" + gallery + note
+                        self.turn_files += [n for n in turn_imgs if n not in self.turn_files]
                     stored, shown = text, display_text(text)
                     break
                 if not shown:

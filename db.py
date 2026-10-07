@@ -10,7 +10,7 @@ from pathlib import Path
 from sqlalchemy.pool import NullPool
 from sqlalchemy import (
     Column, Float, Integer, LargeBinary, MetaData, PrimaryKeyConstraint, String, Table, Text,
-    and_, create_engine, delete, insert, select, update,
+    and_, create_engine, delete, func, insert, select, update,
 )
 
 DAY = 86400
@@ -73,6 +73,12 @@ profiles = Table(
     "profiles", meta,
     Column("user_id", String(32), primary_key=True),
     Column("memory", Text, nullable=False, default=""),
+)
+image_log = Table(
+    "image_log", meta,
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("ip_hash", String(64), nullable=False, index=True),
+    Column("ts", Float, nullable=False),
 )
 usage = Table(
     "usage", meta,
@@ -214,6 +220,21 @@ def set_memory(user_id: str, text: str):
         res = c.execute(update(profiles).where(profiles.c.user_id == user_id).values(memory=text))
         if res.rowcount == 0:
             c.execute(insert(profiles).values(user_id=user_id, memory=text))
+
+
+# ---------- quota d'images par adresse IP (24 h glissantes) ----------
+def image_count(ip_hash: str, window: int = DAY) -> int:
+    with engine.connect() as c:
+        return c.execute(
+            select(func.count()).select_from(image_log)
+            .where(and_(image_log.c.ip_hash == ip_hash, image_log.c.ts > time.time() - window))
+        ).scalar_one()
+
+
+def image_add(ip_hash: str):
+    with engine.begin() as c:
+        c.execute(delete(image_log).where(image_log.c.ts < time.time() - 2 * DAY))  # ménage
+        c.execute(insert(image_log).values(ip_hash=ip_hash, ts=time.time()))
 
 
 # ---------- quota journalier ----------
