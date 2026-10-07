@@ -289,7 +289,13 @@ TOOL_IMG = {
 IMG_PROMPT = (
     "IMAGES : tu peux générer des images avec l'outil generate_image. Si l'utilisateur demande une image, un "
     "dessin, un logo, une illustration, une affiche, etc., appelle l'outil avec une description détaillée EN "
-    "ANGLAIS (traduis sa demande, ajoute style, éclairage, couleurs). N'affirme jamais que tu ne peux pas "
+    "ANGLAIS (traduis sa demande, ajoute style, éclairage, couleurs). Ce générateur est simple et NE SAIT PAS "
+    "écrire de texte lisible : n'inclus jamais de mots, de slogans, de prix ni de lettres dans la description ; "
+    "décris une scène visuelle concrète et facile à dessiner (sujet principal bien précisé, décor, point de "
+    "vue, style, lumière), en traduisant l'idée de la demande en objets ou en situation visuelle (ex. pour « des "
+    "sites web pas chers » : un designer souriant devant un grand écran montrant une page web colorée, bureau "
+    "moderne). Si l'utilisateur voulait du texte dans l'image, dis-lui en une phrase de l'ajouter ensuite avec "
+    "un outil comme Canva. N'affirme jamais que tu ne peux pas "
     "générer d'images. Une seule image par message (si on en demande plusieurs, génère la première et propose de faire la suivante au message suivant). L'image est affichée automatiquement : "
     "écris ensuite une ou deux phrases courtes dans la langue de l'utilisateur, sans insérer de lien ni de "
     "code Markdown pour l'image. Pour modifier une image déjà générée, appelle l'outil avec une nouvelle "
@@ -336,6 +342,7 @@ def display_text(text: str) -> str:
         label = "Word" if m.group(1) == "docx" else "PDF"
         return f"\n\n📄 *Document {label} généré — télécharge-le avec le bouton ci-dessous.*\n\n"
 
+    text = re.sub(r"!\[[^\]]*\](?!\()", "", text)  # faux liens d'image incomplets (sans adresse)
     return DOC_RE.sub(mention, text).strip()
 
 
@@ -910,7 +917,7 @@ class Chat:
                             self.turn_files.append(name)
                     if turn_imgs:
                         # le modèle invente parfois un faux lien d'image : on ne garde que les vraies images
-                        text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text).strip()
+                        text = re.sub(r"!\[[^\]]*\](\([^)]*\))?", "", text).strip()
                     if turn_imgs:  # images affichées sous la réponse (lien interne, propre à la conversation)
                         gallery = "\n\n".join(
                             f"![image](/download?c={self.conv_id}&f={urllib.parse.quote(n)})" for n in turn_imgs
