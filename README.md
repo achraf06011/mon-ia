@@ -17,7 +17,7 @@ Il répond sur tous les sujets (code, cuisine, droit, voyages…), lit des PDF, 
 - 📝 **Création de documents** Word et PDF (lettres, CV, rapports) à partir d'une simple demande
 - 🔁 **Bascule automatique entre fournisseurs d'IA gratuits** quand l'un est saturé ou en panne (Groq → Gemini → …), avec messages d'erreur lisibles
 - 🌍 **Toutes les langues**, y compris l'arabe et la **darija marocaine** (en lettres arabes ou en lettres latines) : l'agent répond dans la langue et l'écriture de l'utilisateur, affichage de droite à gauche, dictée dans la langue choisie, documents Word et PDF en arabe
-- 🎨 **Génération d'images** à partir d'une description (service gratuit Pollinations, sans clé) : l'image s'affiche dans le chat et se télécharge ; limitée à 3 images par adresse IP et par 24 h
+- 🎨 **Génération d'images** à partir d'une description (service gratuit Pollinations, sans clé) : l'image s'affiche dans le chat et se télécharge ; limitée à 3 images par adresse IP et par 24 h *(désactivée sur le déploiement public : `ENABLE_IMAGES=1` pour l'activer)*
 - 🧠 **Mémoire personnelle** : un espace de paramètres où l'on écrit ce que l'IA doit toujours savoir (prénom, métier, style de réponse), utilisé dans toutes les conversations
 - 🎙️ **Dictée vocale** et **lecture des réponses à voix haute** (reconnaissance et synthèse vocales du navigateur, en français)
 - 📎 **Plusieurs fichiers à la fois** (par exemple deux PDF à comparer) et **photo directe** depuis l'appareil du téléphone

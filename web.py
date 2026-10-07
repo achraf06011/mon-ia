@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
 
 import db
-from agent import Chat, available_providers
+from agent import IMG_ON, Chat, available_providers
 
 ONLINE = bool(os.getenv("PORT"))  # l'hébergeur définit PORT
 PORT = int(os.getenv("PORT", "8002"))
@@ -144,7 +144,7 @@ form{padding:8px;gap:6px}form button{padding:11px 10px}#q{padding:11px 10px}
 <script>
 const $=id=>document.getElementById(id);
 const log=$('log'),q=$('q'),prev=$('prev'),file=$('file');
-let atts=[],busy=false,convId=null,list=[],maxBody=12*1024*1024,curBtn=null;
+let atts=[],busy=false,convId=null,list=[],maxBody=12*1024*1024,curBtn=null,imgOn=true;
 function render(el,t){if(window.marked&&window.DOMPurify){el.innerHTML=DOMPurify.sanitize(marked.parse(t,{breaks:true}));el.querySelectorAll('p,li,h1,h2,h3,h4,blockquote,td,th').forEach(x=>x.setAttribute('dir','auto'))}else{el.style.whiteSpace='pre-wrap';el.textContent=t}}
 function add(c,t,imgs,labels){const d=document.createElement('div');d.className='m '+c;d.dir='auto';
 (imgs||[]).forEach(src=>{const i=document.createElement('img');i.src=src;i.style='max-height:160px;border-radius:8px;display:block;margin-bottom:6px';d.appendChild(i)});
@@ -178,7 +178,7 @@ el.appendChild(d)}
 function typeInto(el,text,done){const parts=text.split(/(\s+)/);const per=Math.max(1,Math.ceil(parts.length/90));let i=0;
 (function tick(){i=Math.min(parts.length,i+per);render(el,parts.slice(0,i).join(''));log.scrollTop=log.scrollHeight;if(i<parts.length)setTimeout(tick,22);else if(done)done()})()}
 function statusFor(t,fl,imgs){if(fl.length){if(fl.length>1)return 'Lecture des '+fl.length+' fichiers\u2026';const n=fl[0].name;if(/\.(xlsx|xlsm|csv)$/i.test(n))return 'Traitement du fichier Excel\u2026';if(/\.pdf$/i.test(n))return 'Lecture du PDF\u2026';if(/\.(db|sqlite3?|sql)$/i.test(n))return 'Lecture de la base de données\u2026';return 'Lecture du fichier\u2026'}
-if(imgs.length)return imgs.length>1?'Analyse des images\u2026':'Analyse de l\u2019image\u2026';if(/imag|dessin|illustr|logo|affiche|poster|avatar|portrait|peinture|photo|draw|\u0635\u0648\u0631|\u0631\u0633\u0645/i.test(t))return 'Génération de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
+if(imgs.length)return imgs.length>1?'Analyse des images\u2026':'Analyse de l\u2019image\u2026';if(imgOn&&/imag|dessin|illustr|logo|affiche|poster|avatar|portrait|peinture|photo|draw|\u0635\u0648\u0631|\u0631\u0633\u0645/i.test(t))return 'Génération de l\u2019image\u2026';if(/lettre|\bcv\b|rapport|word|pdf|document|contrat|devis/i.test(t))return 'Création du document\u2026';return 'Réflexion\u2026'}
 function links(el,names){names.forEach(n=>{const l=document.createElement('a');l.className='dl';l.href='/download?c='+convId+'&f='+encodeURIComponent(n);l.textContent='⬇ '+n;l.download=n;el.appendChild(l)})}
 async function api(path,body){const r=await fetch(path,body===undefined?{}:{method:'POST',body:JSON.stringify(body)});if(r.status===401){location.reload();throw new Error('Session expirée')}return r.json()}
 function renderList(){const box=$('list');box.innerHTML='';
@@ -249,7 +249,7 @@ if(r.error){render(w,'Erreur : '+r.error)}
 else{if(autoRead())speak(r.answer);await new Promise(res=>typeInto(w,r.answer,()=>{if(r.downloads&&r.downloads.length)links(w,r.downloads);addTools(w,r.answer);res()}))}}
 catch(err){w.className='m a';render(w,'Erreur : '+err)}
 busy=false;log.scrollTop=log.scrollHeight};
-(async()=>{try{const cfg=await (await fetch('/api/config')).json();maxBody=cfg.max_body||maxBody}catch(e){}
+(async()=>{try{const cfg=await (await fetch('/api/config')).json();maxBody=cfg.max_body||maxBody;imgOn=cfg.images!==false}catch(e){}
 if(canSpeak)speechSynthesis.getVoices();
 const me=await api('/api/me');$('uname').textContent=me.username;await refresh();
 let last=null;try{last=localStorage.getItem('last')}catch(e){}
@@ -391,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path, qs = self._route()
         if path == "/api/config":
-            return self._json({"needs_code": bool(SIGNUP_CODES), "signup": ALLOW_SIGNUP, "max_body": MAX_BODY})
+            return self._json({"needs_code": bool(SIGNUP_CODES), "signup": ALLOW_SIGNUP, "max_body": MAX_BODY, "images": IMG_ON})
         user = self._user()
         if path == "/":
             return self._send((PAGE if user else LOGIN_PAGE).encode(), "text/html")

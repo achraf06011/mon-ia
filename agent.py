@@ -776,6 +776,14 @@ class Chat:
         want_img = IMG_ON and (IMG_HINT.search(question) or any("](/download" in m["content"] for m in recent))
         if want_img:
             system += "\n\n" + IMG_PROMPT
+        elif not IMG_ON and IMG_HINT.search(question):
+            system += (
+                "\n\nIMAGES : la génération d'images est désactivée sur cette application. Si l'utilisateur demande "
+                "de créer une image, dis-le simplement en une phrase, sans t'excuser longuement, et propose des "
+                "outils gratuits (Gemini sur gemini.google.com, Bing Image Creator, Canva). Tu peux en revanche "
+                "l'aider à écrire une excellente description (prompt) à coller dans ces outils. N'écris jamais de "
+                "lien ni de code Markdown d'image."
+            )
         sqlb = self._sqlite()
         if sqlb:
             tpl = SQL_PROMPT if SQL_EDIT else SQL_READONLY_PROMPT
